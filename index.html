@@ -114,6 +114,22 @@ label.check{flex-direction:row;align-items:flex-start;gap:10px;color:var(--fg);f
 label.check input{margin-top:3px;width:18px!important;height:18px}
 label.check span{display:flex;flex-direction:column;gap:2px}label.check small{color:var(--muted);font-size:12.5px}
 .tag.mk{background:#fdecd8;color:#9a4a00}
+label.check.off{opacity:.55}
+div.check{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+div.check span{display:flex;flex-direction:column;gap:2px}div.check small{color:var(--muted);font-size:12.5px}
+div.check input[type=checkbox]{width:18px!important;height:18px}
+.tag.gec{background:#e8eafd;color:#2f3a9e}
+.linkbtn{background:none;border:0;padding:0;font:inherit;font-weight:600;color:var(--accent);cursor:pointer;text-align:left;text-decoration:underline;text-underline-offset:3px}
+.stats .neg{background:#fde8e6}.stats .neg b{color:var(--bad)}
+.ledger{display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.lrow{display:grid;grid-template-columns:auto 1fr auto;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);align-items:start}
+.lrow:last-child{border-bottom:0}
+.lrow .ld{font:500 12px var(--mono);color:var(--muted);min-width:84px;padding-top:2px}
+.lrow .lt{min-width:0;display:flex;flex-direction:column;gap:2px;align-items:flex-start}
+.lrow .la{text-align:right;display:flex;flex-direction:column;gap:2px;font-variant-numeric:tabular-nums}
+.lrow .la small{color:var(--muted);font-size:11.5px;white-space:nowrap}
+.lrow.in .la b{color:var(--ok)}.lrow.out .la b{color:var(--bad)}
+@media (max-width:420px){.lrow{grid-template-columns:1fr auto}.lrow .ld{grid-column:1 / -1;min-width:0}}
 .cal-legend{display:flex;flex-wrap:wrap;gap:6px 12px;padding:8px 12px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
 .cal-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
@@ -414,7 +430,7 @@ function staffEntryCard(it, onChanged){
   } }, "Sil");
   card.append(
     h("div", { class: "entry" },
-      h("div", { class: "date" }, it.baslangic === it.bitis ? tr(it.baslangic) : trShort(it.baslangic) + "–" + tr(it.bitis), it.makine ? h("div", {}, h("span", { class: "tag mk" }, "⚙ Makine")) : null),
+      h("div", { class: "date" }, it.baslangic === it.bitis ? tr(it.baslangic) : trShort(it.baslangic) + "–" + tr(it.bitis), it.makine ? h("div", {}, h("span", { class: "tag mk" }, "⚙ Makine")) : null, it.gec_saat ? h("div", {}, h("span", { class: "tag gec" }, "🌙 Dönüş " + it.gec_saat)) : null),
       h("div", {}, h("div", { class: "t" }, it.firma || "—"), h("div", { class: "muted small" }, [it.ilce, it.il].filter(Boolean).join(" / ") + " · " + n + " gün" + (pz ? " · " + pz + " pazar" : "")))),
     it.arkadaslar ? h("div", { class: "small" }, "Birlikte: " + it.arkadaslar) : null,
     it.aciklama ? h("div", { class: "small", style: "white-space:pre-wrap" }, it.aciklama) : null,
@@ -451,7 +467,7 @@ async function staffEntries(){
       const hint = () => h("p", { class: "muted small" }, "Ayrıntı için bir şeride dokun. Yeni kayıt için boş bir güne dokun ya da günlerin üzerinde basılı tutup sürükle.");
       const detail = h("div", {}, hint());
       const latest = items[0] ? parse(items[0].baslangic) : new Date();
-      const cal = calendar({ items, marks, label: it => (it.makine ? "⚙ " : "") + (it.firma || "—"), start: S.calMonth || latest,
+      const cal = calendar({ items, marks, label: it => (it.makine ? "⚙ " : "") + (it.gec_saat ? "🌙 " : "") + (it.firma || "—"), start: S.calMonth || latest,
         onPick: it => detail.replaceChildren(staffEntryCard(it, load)),
         onRange: (a, b) => openForm(a, b),
         onMonth: (y, m) => { S.calMonth = new Date(y, m, 1); detail.replaceChildren(hint()); } });
@@ -495,6 +511,16 @@ function entryForm(onSaved){
   }));
   const extra = h("input", { id: "f-diger", placeholder: "Listede olmayan (isteğe bağlı)" });
   const makine = h("input", { type: "checkbox", id: "f-makine", style: "width:auto" });
+  const gec = h("input", { type: "checkbox", id: "f-gec", style: "width:auto" });
+  const gecSaat = h("input", { type: "time", id: "f-gec-saat", value: "21:00", step: "300" });
+  const gecBox = h("div", { class: "hidden", style: "margin-top:6px" }, h("label", {}, "Dönüş saati", gecSaat));
+  const gecLbl = h("label", { class: "check" }, gec, h("span", {}, h("b", {}, "Son gün geç dönüldü"), h("small", { id: "f-gec-not" }, "Son gün eve/merkeze geç vardıysanız işaretleyip saati seçin."), gecBox));
+  function syncGec(){
+    if (makine.checked){ gec.checked = false; gec.disabled = true; gecLbl.classList.add("off"); $("#f-gec-not") && ($("#f-gec-not").textContent = "Makine işinde geç dönüş seçilemez."); }
+    else { gec.disabled = false; gecLbl.classList.remove("off"); $("#f-gec-not") && ($("#f-gec-not").textContent = "Son gün eve/merkeze geç vardıysanız işaretleyip saati seçin."); }
+    gecBox.classList.toggle("hidden", !gec.checked);
+  }
+  makine.addEventListener("change", syncGec); gec.addEventListener("change", syncGec);
   const acik = h("textarea", { id: "f-acik", placeholder: "Ne iş yapıldı, nerede kalındı, notlar… Pazar çalıştıysan burada da belirt." });
   const info = h("div", { class: "note info" });
   const out = h("div");
@@ -511,6 +537,7 @@ function entryForm(onSaved){
     h("div", { class: "row" }, h("label", {}, "Başlangıç", bas), h("label", {}, "Bitiş", bit)),
     info,
     h("label", { class: "check" }, makine, h("span", {}, h("b", {}, "Makine işi"), h("small", {}, "Birkaç gün toplu makine hazırladıysanız işaretleyin."))),
+    gecLbl,
     h("label", {}, "Firma / iş yeri", firma), h("datalist", { id: "firmalar" }, (window._firmalar || []).map(x => h("option", { value: x }))),
     h("div", { class: "row" }, h("label", {}, "İl", il), h("label", {}, "İlçe", ilce)),
     h("label", {}, "Birlikte çalıştığın arkadaşlar"), chips, extra,
@@ -522,9 +549,9 @@ function entryForm(onSaved){
     const ark = [...picked, extra.value.trim()].filter(Boolean).join(", ");
     busy(save, true, "Kaydediliyor…");
     try {
-      await rpc("kayit_ekle", { p_token: S.token, p_baslangic: bas.value, p_bitis: bit.value, p_firma: firma.value, p_il: il.value, p_ilce: ilce.value, p_arkadaslar: ark, p_aciklama: acik.value, p_makine: makine.checked });
+      await rpc("kayit_ekle", { p_token: S.token, p_baslangic: bas.value, p_bitis: bit.value, p_firma: firma.value, p_il: il.value, p_ilce: ilce.value, p_arkadaslar: ark, p_aciklama: acik.value, p_makine: makine.checked, p_gec_saat: gec.checked && !makine.checked ? gecSaat.value : null });
       out.append(note("Kaydedildi.", "ok"));
-      firma.value = ""; ilce.value = ""; acik.value = ""; makine.checked = false; extra.value = ""; picked.clear(); chips.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", "false"));
+      firma.value = ""; ilce.value = ""; acik.value = ""; makine.checked = false; gec.checked = false; syncGec(); extra.value = ""; picked.clear(); chips.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", "false"));
       setTimeout(onSaved, 500);
     } catch (e) { out.append(note(e.message)); }
     busy(save, false, "Kaydet");
@@ -602,7 +629,7 @@ async function adminBoot(){
   document.title = "AYSOFT Personel · Yönetici";
   if (!A.token){ tabs([], null); who(null); return adminLogin(); }
   who("Yönetici", () => { rpc("cikis", { p_token: A.token }).catch(() => {}); logout(); });
-  tabs([["bekleyen", "Onay bekleyen"], ["kayitlar", "Kayıtlar"], ["hesap", "Hesap"], ["odeme", "Ödemeler"], ["izinler", "Pazar / İzin"], ["calisan", "Çalışanlar"]], A.tab, k => { A.tab = k; A.leaveOf = null; adminBoot(); });
+  tabs([["bekleyen", "Onay bekleyen"], ["kayitlar", "Kayıtlar"], ["hesap", "Hesap"], ["odeme", "Ödemeler"], ["izinler", "Pazar / İzin"], ["calisan", "Çalışanlar"]], A.tab, k => { A.tab = k; A.leaveOf = null; A.ledgerOf = null; adminBoot(); });
   app.textContent = "";
   try { A.people = await rpc("y_calisanlar", { p_token: A.token }) || []; }
   catch (e) { app.append(note(e.message)); return; }
@@ -652,19 +679,33 @@ function entryCard(it, reload, pending){
   } }, "Sil");
   const pz = sundays(it.baslangic, it.bitis);
   const mk = h("input", { type: "checkbox", checked: !!it.makine, style: "width:auto", onchange: async () => {
-    try { await rpc("y_makine_isi", { p_token: A.token, p_id: it.id, p_makine: mk.checked }); it.makine = mk.checked; mkInfo.textContent = mkText(); out.replaceChildren(note(mk.checked ? "Makine işi olarak işaretlendi." : "Normal gün kaydı yapıldı.", "ok")); }
+    try { await rpc("y_makine_isi", { p_token: A.token, p_id: it.id, p_makine: mk.checked }); it.makine = mk.checked; if (mk.checked){ it.gec_saat = null; gk.checked = false; } gk.disabled = mk.checked; gs.disabled = !gk.checked; gecInfo.textContent = gecText(); mkInfo.textContent = mkText(); out.replaceChildren(note(mk.checked ? "Makine işi olarak işaretlendi." : "Normal gün kaydı yapıldı.", "ok")); }
     catch (e) { mk.checked = !mk.checked; out.replaceChildren(note(e.message)); }
   } });
+  const gk = h("input", { type: "checkbox", checked: !!it.gec_saat, disabled: !!it.makine, style: "width:auto" });
+  const gs = h("input", { type: "time", value: it.gec_saat || "21:00", step: "300", style: "max-width:130px" });
+  const gecSave = async () => {
+    try {
+      await rpc("y_gec_saat", { p_token: A.token, p_id: it.id, p_saat: gk.checked ? gs.value : null });
+      it.gec_saat = gk.checked ? gs.value : null; gecInfo.textContent = gecText();
+      out.replaceChildren(note(gk.checked ? "Geç dönüş kaydedildi." : "Geç dönüş kaldırıldı.", "ok"));
+    } catch (e) { out.replaceChildren(note(e.message)); }
+  };
+  gk.addEventListener("change", () => { gs.disabled = !gk.checked; gecSave(); }); gs.addEventListener("change", () => gk.checked && gecSave());
+  gs.disabled = !gk.checked;
+  const gecText = () => it.makine ? "Makine işinde seçilemez." : !it.gec_saat ? "Son gün geç dönüş yok." : (it.gec_saat >= "20:00" ? "Dönüş " + it.gec_saat + " → +1 gün sayılır." : "Dönüş " + it.gec_saat + " (20:00 öncesi, ek gün yok).");
+  const gecInfo = h("small", {}, gecText());
   const mkText = () => it.makine ? "Günlük ücrete sayılmaz; bu iş için sadece makine ücreti alınır." : "Günler günlük ücrete sayılır.";
   const mkInfo = h("small", {}, mkText());
   return h("div", { class: "card" },
-    h("div", { class: "split" }, h("strong", {}, it.calisan), h("span", { style: "display:flex;gap:6px" }, it.makine ? h("span", { class: "tag mk" }, "⚙ Makine") : null, h("span", { class: "tag " + (it.onay ? "ok" : "wait") }, it.onay ? "Onaylı" : "Bekliyor"))),
+    h("div", { class: "split" }, h("strong", {}, it.calisan), h("span", { style: "display:flex;gap:6px" }, it.makine ? h("span", { class: "tag mk" }, "⚙ Makine") : null, it.gec ? h("span", { class: "tag gec" }, "🌙 +1") : null, h("span", { class: "tag " + (it.onay ? "ok" : "wait") }, it.onay ? "Onaylı" : "Bekliyor"))),
     h("div", { class: "entry" },
       h("div", { class: "date" }, it.baslangic === it.bitis ? tr(it.baslangic) : trShort(it.baslangic) + "–" + tr(it.bitis)),
       h("div", {}, h("div", { class: "t" }, it.firma || "—"), h("div", { class: "muted small" }, [it.ilce, it.il].filter(Boolean).join(" / ") + " · " + it.gun + " gün" + (pz ? " · " + pz + " pazar" : "")))),
     it.arkadaslar ? h("div", { class: "small" }, "Birlikte: " + it.arkadaslar) : null,
     it.aciklama ? h("div", { class: "small", style: "white-space:pre-wrap" }, it.aciklama) : null,
     h("label", { class: "check" }, mk, h("span", {}, h("b", {}, "Makine işi"), mkInfo)),
+    h("div", { class: "check" }, gk, h("span", { style: "flex:1" }, h("b", {}, "Son gün geç dönüş"), gecInfo), gs),
     h("div", { class: "row" }, h("label", {}, "Makine / iş ücreti (TL)", fee), saveFee),
     out,
     h("div", { class: "row" }, approve, del));
@@ -712,7 +753,7 @@ async function adminEntries(){
         const detail = h("div", {}, h("p", { class: "muted small" }, "Ayrıntı ve onay için bir şeride dokun. Çizgili şeritler onay bekliyor."));
         const one = !!who_.value;
         list.append(calendar({ items, start: A.calMonth, pendingOf: it => !it.onay,
-          label: it => (it.makine ? "⚙ " : "") + (one ? (it.firma || "—") : (it.calisan.split(" ")[0] + " · " + (it.firma || "—"))),
+          label: it => (it.makine ? "⚙ " : "") + (it.gec ? "🌙 " : "") + (one ? (it.firma || "—") : (it.calisan.split(" ")[0] + " · " + (it.firma || "—"))),
           onPick: it => detail.replaceChildren(entryCard(it, load, false)),
           onMonth: (y, m) => { A.calMonth = new Date(y, m, 1); } }), detail);
       } else {
@@ -726,6 +767,7 @@ async function adminEntries(){
 }
 
 async function adminAccount(){
+  if (A.ledgerOf) return adminLedger(A.ledgerOf);
   const [a, b] = monthRange(0);
   const bas = h("input", { type: "date", id: "h-bas", value: a }), bit = h("input", { type: "date", id: "h-bit", value: b });
   const quick = h("div", { class: "chips" },
@@ -734,7 +776,7 @@ async function adminAccount(){
     h("button", { class: "chip", type: "button", onclick: () => { bas.value = ""; bit.value = ""; load(); } }, "Tüm zamanlar"));
   const box = h("div", { style: "display:flex;flex-direction:column;gap:10px" });
   app.append(h("h2", {}, "Hesap"), h("div", { class: "card" }, h("div", { class: "row" }, h("label", {}, "Başlangıç", bas), h("label", {}, "Bitiş", bit)), quick,
-    h("p", { class: "muted small" }, "Hak ediş = onaylı kayıtlardaki farklı günler × günlük ücret + onaylı kayıtların makine/iş ücreti. ⚙ Makine işi işaretli kayıtların günleri sayılmaz, sadece makine ücreti eklenir. Bakiye = hak ediş − dönemde yatırılanlar.")), box);
+    h("p", { class: "muted small" }, "Hak ediş = onaylı kayıtlardaki farklı günler × günlük ücret + onaylı kayıtların makine/iş ücreti. ⚙ Makine işi işaretli kayıtların günleri sayılmaz, sadece makine ücreti eklenir. 🌙 Son gün 20:00 ve sonrası dönüş +1 gün sayılır. Ayrıntılı döküm için çalışanın adına dokun. Bakiye = hak ediş − dönemde yatırılanlar.")), box);
   async function load(){
     box.replaceChildren(h("p", { class: "muted" }, "Hesaplanıyor…"));
     try {
@@ -742,12 +784,13 @@ async function adminAccount(){
       const tb = h("tbody");
       const T = { gun: 0, gunluk: 0, makine: 0, hak: 0, odenen: 0, bakiye: 0 };
       for (const r of rows){
-        const gunluk = r.gun * r.gunluk_ucret, hak = gunluk + Number(r.makine), bak = hak - Number(r.odenen);
-        T.gun += r.gun; T.gunluk += gunluk; T.makine += Number(r.makine); T.hak += hak; T.odenen += Number(r.odenen); T.bakiye += bak;
+        const g = r.gun + (r.gec || 0);
+        const gunluk = g * r.gunluk_ucret, hak = gunluk + Number(r.makine), bak = hak - Number(r.odenen);
+        T.gun += g; T.gunluk += gunluk; T.makine += Number(r.makine); T.hak += hak; T.odenen += Number(r.odenen); T.bakiye += bak;
         tb.append(h("tr", {},
-          h("td", {}, r.ad + (r.aktif ? "" : " (pasif)"), r.bekleyen_gun ? h("div", { class: "muted small" }, r.bekleyen_gun + " gün onay bekliyor") : null,
+          h("td", {}, h("button", { class: "linkbtn", type: "button", onclick: () => { A.ledgerOf = { id: r.id, ad: r.ad, ucret: r.gunluk_ucret }; adminBoot(); } }, r.ad + (r.aktif ? "" : " (pasif)")), r.bekleyen_gun ? h("div", { class: "muted small" }, r.bekleyen_gun + " gün onay bekliyor") : null,
             r.ucretsiz_makine ? h("div", { class: "small", style: "color:var(--bad)" }, r.ucretsiz_makine + " makine işinin ücreti girilmemiş") : null),
-          h("td", {}, r.gun), h("td", {}, TL(r.gunluk_ucret)), h("td", {}, TL(gunluk)), h("td", {}, TL(r.makine)),
+          h("td", {}, g, r.gec ? h("div", { class: "muted small", style: "white-space:nowrap" }, "geç dönüş " + r.gec + " adet") : null), h("td", {}, TL(r.gunluk_ucret)), h("td", {}, TL(gunluk)), h("td", {}, TL(r.makine)),
           h("td", { style: "font-weight:600" }, TL(hak)), h("td", {}, TL(r.odenen)),
           h("td", { class: bak >= 0 ? "pos" : "neg", style: "font-weight:700" }, TL(bak)),
           h("td", {}, r.pazar_kalan + " / " + r.pazar_kazanilan)));
@@ -759,6 +802,85 @@ async function adminAccount(){
     } catch (e) { box.replaceChildren(note(e.message)); }
   }
   [bas, bit].forEach(x => x.addEventListener("change", load));
+  load();
+}
+
+// Çalışan hesap dökümü: tarih sırasıyla hak edişler ve yatırılanlar, yürüyen bakiye.
+async function adminLedger(who){
+  const box = h("div", { style: "display:flex;flex-direction:column;gap:10px" });
+  app.append(box);
+  box.append(h("div", { class: "split" }, h("h2", {}, who.ad + " · hesap dökümü"), h("button", { class: "btn", onclick: () => { A.ledgerOf = null; adminBoot(); } }, "‹ Geri")));
+  // hızlı ödeme
+  const f = h("form", { class: "card" });
+  const tarih = h("input", { type: "date", value: today(), required: true });
+  const tutar = h("input", { type: "number", inputmode: "decimal", step: "0.01", required: true, placeholder: "0,00" });
+  const tur = h("select", {}, ["Yol parası", "Avans", "Hak ediş ödemesi", "Diğer"].map(x => h("option", { value: x }, x)));
+  const acik = h("input", { placeholder: "Açıklama (isteğe bağlı)" });
+  const fout = h("div"), save = h("button", { class: "btn primary", type: "submit" }, "Yatırılanı kaydet");
+  f.append(h("strong", {}, "Yatırılan tutar ekle"), h("div", { class: "row" }, h("label", {}, "Tarih", tarih), h("label", {}, "Tutar (TL)", tutar)),
+    h("div", { class: "row" }, h("label", {}, "Tür", tur), h("label", {}, "Açıklama", acik)), fout, save);
+  f.addEventListener("submit", async ev => {
+    ev.preventDefault(); fout.textContent = ""; busy(save, true, "Kaydediliyor…");
+    try { await rpc("y_odeme_ekle", { p_token: A.token, p_calisan: who.id, p_tarih: tarih.value, p_tutar: Number(tutar.value), p_tur: tur.value, p_aciklama: acik.value }); tutar.value = ""; acik.value = ""; await load(); fout.replaceChildren(note("Kaydedildi, bakiyeden düşüldü.", "ok")); }
+    catch (e) { fout.replaceChildren(note(e.message)); }
+    busy(save, false, "Yatırılanı kaydet");
+  });
+  const sum = h("div"), list = h("div", { class: "ledger" }, h("p", { class: "muted" }, "Yükleniyor…"));
+  box.append(sum, f, h("h2", {}, "Hareketler"), list);
+  async function load(){
+    try {
+      const [ent, pay] = await Promise.all([
+        rpc("y_kayitlar", { p_token: A.token, p_durum: "hepsi", p_calisan: who.id, p_bas: null, p_bit: null }),
+        rpc("y_odemeler", { p_token: A.token, p_calisan: who.id })]);
+      const wage = Number(who.ucret || 0);
+      const approved = (ent || []).filter(e => e.onay).sort((p, q) => p.baslangic < q.baslangic ? -1 : p.baslangic > q.baslangic ? 1 : p.id - q.id);
+      const pending = (ent || []).filter(e => !e.onay);
+      const covered = new Set(), gecDays = new Set(), rows = [];
+      for (const e of approved){
+        let yeni = 0, extra = 0;
+        if (!e.makine){
+          for (let d = parse(e.baslangic); iso(d) <= e.bitis; d.setDate(d.getDate() + 1)){ const k = iso(d); if (!covered.has(k)){ covered.add(k); yeni++; } }
+          if (e.gec && !gecDays.has(e.bitis)){ gecDays.add(e.bitis); extra = 1; }
+        }
+        const fee = Number(e.makine_ucreti || 0);
+        const parts = [];
+        if (e.makine) parts.push("⚙ Makine işi");
+        else parts.push(yeni + " gün" + (yeni !== e.gun ? " (" + (e.gun - yeni) + " gün başka kayıtla çakışıyor)" : "") + " × " + TL(wage));
+        if (extra) parts.push("🌙 geç dönüş " + e.gec_saat + " → +1 gün");
+        if (fee) parts.push("makine/iş ücreti " + TL(fee));
+        if (e.makine && !fee) parts.push("ücret girilmemiş");
+        rows.push({ key: e.baslangic + "a" + String(e.id).padStart(9, "0"), date: e.baslangic === e.bitis ? tr(e.baslangic) : trShort(e.baslangic) + "–" + tr(e.bitis),
+          title: e.firma || "—", sub: parts.join(" · "), amt: (yeni + extra) * wage + fee, gun: yeni + extra });
+      }
+      for (const o of pay || []){
+        const t = o.olusturma ? new Date(o.olusturma).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }) : "";
+        rows.push({ key: o.tarih + "b" + String(o.id).padStart(9, "0"), date: tr(o.tarih) + (t ? " " + t : ""), title: o.tur, sub: o.aciklama || "Yatırılan", amt: -Number(o.tutar), pay: o });
+      }
+      rows.sort((p, q) => p.key < q.key ? -1 : 1);
+      let bal = 0, hak = 0, odenen = 0, gun = 0;
+      for (const r of rows){ bal += r.amt; r.bal = bal; if (r.amt >= 0) hak += r.amt; else odenen -= r.amt; gun += r.gun || 0; }
+      sum.replaceChildren(h("div", { class: "card" }, h("div", { class: "stats" },
+        h("div", {}, h("b", { style: "font-size:18px" }, TL(hak)), h("span", {}, "Hak ediş · " + gun + " gün")),
+        h("div", {}, h("b", { style: "font-size:18px" }, TL(odenen)), h("span", {}, "Yatırılan")),
+        h("div", { class: bal >= 0 ? "hl" : "neg" }, h("b", { style: "font-size:18px" }, TL(bal)), h("span", {}, bal >= 0 ? "Kalan (ödenecek)" : "Fazla yatırılan"))),
+        pending.length ? h("p", { class: "muted small", style: "margin:8px 0 0" }, pending.length + " kayıt onay bekliyor, onaylanınca hesaba eklenir.") : null));
+      list.textContent = "";
+      if (!rows.length) list.append(h("p", { class: "muted" }, "Henüz onaylı kayıt ya da ödeme yok."));
+      for (const r of rows.slice().reverse()){
+        let del = null;
+        if (r.pay){
+          del = h("button", { class: "btn link", style: "color:var(--bad);padding:0", onclick: async () => {
+            if (del.dataset.sure !== "1"){ del.dataset.sure = "1"; del.textContent = "Emin misin?"; return; }
+            try { await rpc("y_odeme_sil", { p_token: A.token, p_id: r.pay.id }); load(); } catch (e) { list.prepend(note(e.message)); }
+          } }, "Sil");
+        }
+        list.append(h("div", { class: "lrow " + (r.amt < 0 ? "out" : "in") },
+          h("div", { class: "ld" }, r.date),
+          h("div", { class: "lt" }, h("strong", {}, r.title), h("div", { class: "muted small" }, r.sub), del),
+          h("div", { class: "la" }, h("b", {}, (r.amt < 0 ? "−" : "+") + TL(Math.abs(r.amt))), h("small", {}, "Bakiye " + TL(r.bal)))));
+      }
+    } catch (e) { list.replaceChildren(note(e.message)); }
+  }
   load();
 }
 
@@ -788,7 +910,7 @@ async function adminPayments(){
           try { await rpc("y_odeme_sil", { p_token: A.token, p_id: o.id }); load(); } catch (e) { list.prepend(note(e.message)); }
         } }, "Sil");
         list.append(h("div", { class: "card" }, h("div", { class: "split" },
-          h("div", {}, h("strong", {}, o.calisan), h("div", { class: "muted small" }, tr(o.tarih) + " · " + o.tur + (o.aciklama ? " · " + o.aciklama : ""))),
+          h("div", {}, h("strong", {}, o.calisan), h("div", { class: "muted small" }, tr(o.tarih) + (o.olusturma ? " · girildi " + new Date(o.olusturma).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" }) : "") + " · " + o.tur + (o.aciklama ? " · " + o.aciklama : ""))),
           h("div", { style: "display:flex;gap:12px;align-items:center" }, h("strong", { style: "font-variant-numeric:tabular-nums" }, TL(o.tutar)), del))));
       }
     } catch (e) { list.replaceChildren(note(e.message)); }
@@ -883,7 +1005,9 @@ async function adminPeople(){
         if (!p) adminBoot();
       } catch (e) { out.replaceChildren(note(e.message)); }
     } }, p ? "Kaydet" : "Çalışan ekle");
-    const prof = p ? h("button", { class: "btn", type: "button", onclick: () => { A.leaveOf = { id: p.id, ad: p.ad }; A.tab = "izinler"; adminBoot(); } }, "Pazar izinleri") : null;
+    const prof = p ? h("span", { style: "display:flex;gap:6px;flex-wrap:wrap" },
+      h("button", { class: "btn", type: "button", onclick: () => { A.ledgerOf = { id: p.id, ad: p.ad, ucret: p.gunluk_ucret }; A.tab = "hesap"; adminBoot(); } }, "Hesap dökümü"),
+      h("button", { class: "btn", type: "button", onclick: () => { A.leaveOf = { id: p.id, ad: p.ad }; A.tab = "izinler"; adminBoot(); } }, "Pazar izinleri")) : null;
     return h("div", { class: "card" }, prof ? h("div", { class: "split" }, h("strong", {}, p.ad), prof) : null,
       h("div", { class: "row" }, h("label", {}, "Ad", ad), h("label", {}, "Günlük ücret (TL)", ucret)),
       h("div", { class: "row" }, h("label", {}, "Şifre", pin), h("label", { style: "flex-direction:row;align-items:center;gap:8px;color:var(--fg)" }, aktif, "Aktif (giriş yapabilir)")), out, save);

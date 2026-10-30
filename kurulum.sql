@@ -53,10 +53,12 @@ create table if not exists kayit (
   onay_zamani    timestamptz,
   makine_ucreti  numeric(12,2),
   makine         boolean not null default false,  -- makine işi: günlük ücrete sayılmaz
+  gec_saat       time,                            -- son gün dönüş saati; 20:00 ve sonrası +1 gün
   olusturma      timestamptz not null default now(),
   constraint kayit_tarih check (bitis >= baslangic and bitis - baslangic <= 92)
 );
 alter table kayit add column if not exists makine boolean not null default false;
+alter table kayit add column if not exists gec_saat time;
 create index if not exists kayit_calisan on kayit (calisan_id, baslangic);
 
 create table if not exists izin (
@@ -239,14 +241,16 @@ begin
   return coalesce((
     select json_agg(json_build_object(
       'id', id, 'baslangic', baslangic, 'bitis', bitis, 'firma', firma, 'il', il, 'ilce', ilce,
-      'arkadaslar', arkadaslar, 'aciklama', aciklama, 'makine', makine, 'olusturma', olusturma
+      'arkadaslar', arkadaslar, 'aciklama', aciklama, 'makine', makine, 'gec_saat', to_char(gec_saat, 'HH24:MI'), 'olusturma', olusturma
     ) order by baslangic desc, id desc)
     from kayit where calisan_id = cid), '[]'::json);
 end $$;
 
 drop function if exists kayit_ekle(text, date, date, text, text, text, text, text);
+drop function if exists kayit_ekle(text, date, date, text, text, text, text, text, boolean);
 create or replace function kayit_ekle(p_token text, p_baslangic date, p_bitis date, p_firma text, p_il text,
-                                      p_ilce text, p_arkadaslar text, p_aciklama text, p_makine boolean default false) returns bigint
+                                      p_ilce text, p_arkadaslar text, p_aciklama text, p_makine boolean default false,
+                                      p_gec_saat time default null) returns bigint
 language plpgsql security definer set search_path = public, extensions as $$
 declare cid bigint := _calisan(p_token); yeni bigint;
 begin
@@ -256,10 +260,10 @@ begin
   if coalesce(trim(p_firma), '') = '' and coalesce(trim(p_aciklama), '') = '' then
     raise exception 'Firma ya da açıklama yaz.';
   end if;
-  insert into kayit (calisan_id, baslangic, bitis, firma, il, ilce, arkadaslar, aciklama, makine)
+  insert into kayit (calisan_id, baslangic, bitis, firma, il, ilce, arkadaslar, aciklama, makine, gec_saat)
   values (cid, p_baslangic, p_bitis, left(trim(coalesce(p_firma, '')), 120), left(trim(coalesce(p_il, '')), 40),
           left(trim(coalesce(p_ilce, '')), 60), left(trim(coalesce(p_arkadaslar, '')), 300), left(trim(coalesce(p_aciklama, '')), 2000),
-          coalesce(p_makine, false))
+          coalesce(p_makine, false), case when coalesce(p_makine, false) then null else p_gec_saat end)
   returning id into yeni;
   return yeni;
 end $$;
@@ -317,7 +321,7 @@ begin
       'id', k.id, 'calisan_id', k.calisan_id, 'calisan', c.ad, 'baslangic', k.baslangic, 'bitis', k.bitis,
       'gun', k.bitis - k.baslangic + 1,
       'firma', k.firma, 'il', k.il, 'ilce', k.ilce, 'arkadaslar', k.arkadaslar, 'aciklama', k.aciklama,
-      'onay', k.onay, 'makine', k.makine, 'makine_ucreti', k.makine_ucreti, 'olusturma', k.olusturma
+      'onay', k.onay, 'makine', k.makine, 'gec_saat', to_char(k.gec_saat, 'HH24:MI'), 'gec', k.gec_saat >= time '20:00' and not k.makine, 'makine_ucreti', k.makine_ucreti, 'olusturma', k.olusturma
     ) order by k.baslangic desc, k.id desc)
     from kayit k join calisan c on c.id = k.calisan_id
     where (p_durum is null or p_durum = 'hepsi' or (p_durum = 'bekleyen' and not k.onay) or (p_durum = 'onayli' and k.onay))
@@ -352,7 +356,15 @@ create or replace function y_makine_isi(p_token text, p_id bigint, p_makine bool
 language plpgsql security definer set search_path = public, extensions as $$
 begin
   perform _yonetici(p_token);
-  update kayit set makine = coalesce(p_makine, false) where id = p_id;
+  update kayit set makine = coalesce(p_makine, false),
+                   gec_saat = case when coalesce(p_makine, false) then null else gec_saat end where id = p_id;
+end $$;
+
+create or replace function y_gec_saat(p_token text, p_id bigint, p_saat time) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+begin
+  perform _yonetici(p_token);
+  update kayit set gec_saat = case when makine then null else p_saat end where id = p_id;
 end $$;
 
 create or replace function y_calisanlar(p_token text) returns json
@@ -383,7 +395,7 @@ language plpgsql security definer set search_path = public, extensions as $$
 begin
   perform _yonetici(p_token);
   return coalesce((select json_agg(json_build_object('id', o.id, 'calisan_id', o.calisan_id, 'calisan', c.ad, 'tarih', o.tarih,
-                    'tutar', o.tutar, 'tur', o.tur, 'aciklama', o.aciklama) order by o.tarih desc, o.id desc)
+                    'tutar', o.tutar, 'tur', o.tur, 'aciklama', o.aciklama, 'olusturma', o.olusturma) order by o.tarih desc, o.id desc)
                    from odeme o join calisan c on c.id = o.calisan_id
                    where p_calisan is null or o.calisan_id = p_calisan), '[]'::json);
 end $$;
@@ -425,6 +437,8 @@ begin
           where k.calisan_id = c.id and k.onay and not k.makine) as gun,
         (select count(distinct d::date) from kayit k, generate_series(greatest(k.baslangic, b), least(k.bitis, e), interval '1 day') d
           where k.calisan_id = c.id and not k.onay and not k.makine) as bekleyen_gun,
+        (select count(distinct k.bitis) from kayit k where k.calisan_id = c.id and k.onay and not k.makine
+          and k.gec_saat >= time '20:00' and k.bitis between b and e) as gec,
         (select count(*) from kayit k where k.calisan_id = c.id and k.onay and k.makine and k.makine_ucreti is null
           and k.baslangic between b and e) as ucretsiz_makine,
         coalesce((select sum(makine_ucreti) from kayit k where k.calisan_id = c.id and k.onay and k.baslangic between b and e), 0) as makine,
@@ -469,10 +483,10 @@ revoke execute on function _kilitli(text), _deneme_hata(text), _oturum(text), _c
 
 grant execute on function
   calisan_adlari(), giris(text, text), cikis(text), yonetici_kurulu(), yonetici_kurulum(text), yonetici_giris(text),
-  kayitlarim(text), kayit_ekle(text, date, date, text, text, text, text, text, boolean), kayit_sil(text, bigint),
+  kayitlarim(text), kayit_ekle(text, date, date, text, text, text, text, text, boolean, time), kayit_sil(text, bigint),
   pazar_durumum(text), izin_ekle(text, date, boolean, text), izin_sil(text, bigint),
   y_kayitlar(text, text, bigint, date, date), y_onayla(text, bigint, boolean), y_kayit_sil(text, bigint),
-  y_makine_ucreti(text, bigint, numeric), y_makine_isi(text, bigint, boolean), y_calisanlar(text), y_calisan_kaydet(text, bigint, text, numeric, boolean, text),
+  y_makine_ucreti(text, bigint, numeric), y_makine_isi(text, bigint, boolean), y_gec_saat(text, bigint, time), y_calisanlar(text), y_calisan_kaydet(text, bigint, text, numeric, boolean, text),
   y_odemeler(text, bigint), y_odeme_ekle(text, bigint, date, numeric, text, text), y_odeme_sil(text, bigint),
   y_izinler(text), y_hesap(text, date, date), y_pazar_ozet(text), y_pazar_durumu(text, bigint)
 to anon, authenticated;
