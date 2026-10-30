@@ -97,6 +97,10 @@ tr.total td{font-weight:700;border-bottom:0}
 .cal-bar.cont-r{border-top-right-radius:0;border-bottom-right-radius:0;margin-right:0}
 .cal-bar.sel{outline:3px solid var(--fg);outline-offset:-1px}
 .cal-bar.wait{background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.18) 0 6px,transparent 6px 12px)}
+.cal.pickable{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.cal.pickable .cal-week{cursor:cell}
+.cal-bg div.pick{background:color-mix(in srgb,var(--accent) 24%,transparent)!important;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 45%,transparent)}
+.cal-hint{font-size:12px;color:var(--muted);margin:0}
 .cal-legend{display:flex;flex-wrap:wrap;gap:6px 12px;padding:8px 12px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
 .cal-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
@@ -200,9 +204,10 @@ function mondayOf(d){ const x = new Date(d); const w = (x.getDay() + 6) % 7; x.s
 
 /**
  * Aylık takvim. items: {id, baslangic, bitis, firma, ...}; label(it) şerit yazısı; marks: {"YYYY-MM-DD": "İzin"}.
- * onPick(it) şeride dokununca; onMonth(y, m) ay değişince.
+ * onPick(it) şeride dokununca; onMonth(y, m) ay değişince; onRange(bas, bit) günler seçilince
+ * (fareyle sürükle; dokunmatikte basılı tut + sürükle; boş güne tek dokunuş = tek gün).
  */
-function calendar({ items, label, marks = {}, onPick, onMonth, start, pendingOf }){
+function calendar({ items, label, marks = {}, onPick, onMonth, start, pendingOf, onRange }){
   let cur = start ? new Date(start.getFullYear(), start.getMonth(), 1) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
   let selected = null;
   const root = h("div", { class: "cal" });
@@ -221,12 +226,12 @@ function calendar({ items, label, marks = {}, onPick, onMonth, start, pendingOf 
     const used = new Set();
     for (let ws = mondayOf(first); ws <= last; ws.setDate(ws.getDate() + 7)){
       const wsIso = iso(ws), we = new Date(ws); we.setDate(we.getDate() + 6); const weIso = iso(we);
-      const week = h("div", { class: "cal-week" });
+      const week = h("div", { class: "cal-week", "data-ws": wsIso });
       const bg = h("div", { class: "cal-bg" });
       for (let i = 0; i < 7; i++){
         const d = new Date(ws); d.setDate(d.getDate() + i);
         const out = d.getMonth() !== m, di = iso(d);
-        bg.append(h("div", { class: out ? "out" : "" }));
+        bg.append(h("div", { class: out ? "out" : "", "data-d": di }));
         week.append(h("div", { class: "cal-num" + (out ? " out" : "") + (di === todayIso ? " now" : ""), style: "grid-column:" + (i + 1) + ";grid-row:1" },
           h("span", {}, d.getDate()), marks[di] ? h("span", { class: "lv" }, marks[di]) : null));
       }
@@ -250,7 +255,7 @@ function calendar({ items, label, marks = {}, onPick, onMonth, start, pendingOf 
           class: "cal-bar" + (sg.cl ? " cont-l" : "") + (sg.cr ? " cont-r" : "") + (selected === sg.it.id ? " sel" : "") + (pendingOf && pendingOf(sg.it) ? " wait" : ""),
           style: "grid-column:" + (sg.a + 1) + " / span " + (sg.b - sg.a + 1) + ";grid-row:" + (li + 2) + ";background-color:" + col,
           title: (label(sg.it)) + " · " + tr(sg.it.baslangic) + (sg.it.bitis !== sg.it.baslangic ? "–" + tr(sg.it.bitis) : ""),
-          onclick: () => { selected = sg.it.id; render(); onPick && onPick(sg.it); }
+          onclick: () => { if (root._skip) return; selected = sg.it.id; render(); onPick && onPick(sg.it); }
         }, label(sg.it));
         week.append(bar);
       }
@@ -265,7 +270,69 @@ function calendar({ items, label, marks = {}, onPick, onMonth, start, pendingOf 
   root.setItems = (list, mk) => { items = list; firmalariKaydet(list); if (mk) marks = mk; render(); };
   root.month = () => [cur.getFullYear(), cur.getMonth()];
   render();
+  if (onRange) rangePicker(root, onRange);
   return root;
+}
+
+// Takvimde gün aralığı seçme: fare ile sürükle, dokunmatikte basılı tutup sürükle.
+function rangePicker(root, onRange){
+  root.classList.add("pickable");
+  let a = null, b = null, mode = null, timer = null, sx = 0, sy = 0, onBar = false, moved = false;
+  const dayAt = (x, y) => {
+    const el = document.elementFromPoint(x, y), wk = el && el.closest(".cal-week");
+    if (!wk || !root.contains(wk)) return null;
+    const r = wk.getBoundingClientRect(), i = Math.min(6, Math.max(0, Math.floor((x - r.left) / (r.width / 7))));
+    const d = parse(wk.dataset.ws); d.setDate(d.getDate() + i); return iso(d);
+  };
+  const paint = () => {
+    const p = a && b ? (a <= b ? a : b) : null, q = a && b ? (a <= b ? b : a) : null;
+    root.querySelectorAll(".cal-bg div[data-d]").forEach(c => c.classList.toggle("pick", !!p && c.dataset.d >= p && c.dataset.d <= q));
+  };
+  const reset = () => { clearTimeout(timer); mode = null; a = b = null; paint(); };
+  const skipClick = () => { root._skip = true; setTimeout(() => { root._skip = false; }, 80); };
+  const finish = () => { const p = a <= b ? a : b, q = a <= b ? b : a; reset(); onRange(p, q); };
+  // fare
+  const mm = e => { const d = dayAt(e.clientX, e.clientY); if (d && d !== b){ b = d; moved = true; paint(); } };
+  const mu = () => {
+    window.removeEventListener("mousemove", mm); window.removeEventListener("mouseup", mu);
+    if (mode !== "sel") return;
+    if (onBar && !moved){ reset(); return; }      // şeride normal tıklama: detayı göster
+    if (onBar) skipClick();
+    finish();
+  };
+  root.addEventListener("mousedown", e => {
+    if (e.button !== 0 || e.target.closest(".cal-head,.cal-dow,.cal-legend")) return;
+    const d = dayAt(e.clientX, e.clientY); if (!d) return;
+    a = b = d; mode = "sel"; moved = false; onBar = !!e.target.closest(".cal-bar");
+    if (!onBar){ paint(); e.preventDefault(); }
+    window.addEventListener("mousemove", mm); window.addEventListener("mouseup", mu);
+  });
+  // dokunmatik
+  root.addEventListener("touchstart", e => {
+    if (e.touches.length !== 1 || e.target.closest(".cal-head,.cal-dow,.cal-legend")) return;
+    const t = e.touches[0]; sx = t.clientX; sy = t.clientY;
+    const d = dayAt(sx, sy); if (!d) return;
+    a = b = d; mode = "wait"; onBar = !!e.target.closest(".cal-bar");
+    timer = setTimeout(() => { mode = "sel"; paint(); if (navigator.vibrate) navigator.vibrate(15); }, 300);
+  }, { passive: true });
+  root.addEventListener("touchmove", e => {
+    if (!mode) return;
+    const t = e.touches[0];
+    if (mode === "wait"){ if (Math.hypot(t.clientX - sx, t.clientY - sy) > 8) reset(); return; }  // kaydırıyor
+    e.preventDefault();
+    const d = dayAt(t.clientX, t.clientY); if (d && d !== b){ b = d; paint(); }
+  }, { passive: false });
+  root.addEventListener("touchend", e => {
+    if (!mode) return;
+    clearTimeout(timer);
+    if (mode === "wait"){                            // kısa dokunuş
+      if (onBar){ mode = null; a = b = null; return; } // şerit kendi tıklamasını alır
+      e.preventDefault(); const d = a; reset(); onRange(d, d); return;
+    }
+    e.preventDefault(); skipClick(); finish();
+  });
+  root.addEventListener("touchcancel", reset);
+  root.addEventListener("contextmenu", e => { if (mode) e.preventDefault(); });
 }
 
 function viewToggle(current, onPick){
@@ -346,6 +413,12 @@ async function staffEntries(){
   S.view = S.view || LS.get("ap_view") || "takvim";
   const head = h("div", { class: "split" }, h("h2", {}, "Kayıtlarım"));
   const addBtn = h("button", { class: "btn primary", onclick: () => { form.classList.toggle("hidden"); if (!form.classList.contains("hidden")) $("#f-firma").focus(); } }, "+ Yeni kayıt");
+  function openForm(a, b){
+    form.setRange(a, b);
+    form.classList.remove("hidden");
+    form.scrollIntoView({ behavior: "smooth", block: "start" });
+    setTimeout(() => $("#f-firma").focus({ preventScroll: true }), 350);
+  }
   head.append(addBtn);
   const form = entryForm(() => { form.classList.add("hidden"); load(); });
   form.classList.add("hidden");
@@ -362,11 +435,13 @@ async function staffEntries(){
       return;
     }
     if (S.view === "takvim"){
-      const detail = h("div", {}, h("p", { class: "muted small" }, "Ayrıntı için takvimdeki bir şeride dokun."));
+      const hint = () => h("p", { class: "muted small" }, "Ayrıntı için bir şeride dokun. Yeni kayıt için boş bir güne dokun ya da günlerin üzerinde basılı tutup sürükle.");
+      const detail = h("div", {}, hint());
       const latest = items[0] ? parse(items[0].baslangic) : new Date();
       const cal = calendar({ items, marks, label: it => it.firma || "—", start: S.calMonth || latest,
         onPick: it => detail.replaceChildren(staffEntryCard(it, load)),
-        onMonth: (y, m) => { S.calMonth = new Date(y, m, 1); detail.replaceChildren(h("p", { class: "muted small" }, "Ayrıntı için takvimdeki bir şeride dokun.")); } });
+        onRange: (a, b) => openForm(a, b),
+        onMonth: (y, m) => { S.calMonth = new Date(y, m, 1); detail.replaceChildren(hint()); } });
       body.append(cal, detail);
     } else {
       let month = "";
@@ -426,6 +501,7 @@ function entryForm(onSaved){
     h("label", {}, "Birlikte çalıştığın arkadaşlar"), chips, extra,
     h("label", {}, "Açıklama / rapor", acik), out, save);
   upd();
+  f.setRange = (a, b) => { bas.value = a; bit.value = b; upd(); };
   f.addEventListener("submit", async ev => {
     ev.preventDefault(); out.textContent = "";
     const ark = [...picked, extra.value.trim()].filter(Boolean).join(", ");
