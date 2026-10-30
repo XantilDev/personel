@@ -101,6 +101,15 @@ tr.total td{font-weight:700;border-bottom:0}
 .cal.pickable .cal-week{cursor:cell}
 .cal-bg div.pick{background:color-mix(in srgb,var(--accent) 24%,transparent)!important;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 45%,transparent)}
 .cal-hint{font-size:12px;color:var(--muted);margin:0}
+.person{width:100%;border:1px solid var(--line);cursor:pointer;font:inherit;color:inherit;text-align:left}
+.person:hover{border-color:var(--accent)}
+.kalan{display:flex;flex-direction:column;align-items:center;min-width:54px;padding:4px 8px;border-radius:10px;background:var(--bg)}
+.kalan b{font:700 22px var(--mono)}.kalan span{font-size:11px;color:var(--muted)}
+.kalan.var{background:var(--ok-bg)}.kalan.var b{color:var(--ok)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
+.stats div{display:flex;flex-direction:column;gap:2px;padding:6px;border-radius:10px;background:var(--bg)}
+.stats b{font:700 26px var(--mono)}.stats span{font-size:12px;color:var(--muted)}
+.stats .hl{background:var(--ok-bg)}.stats .hl b{color:var(--ok)}
 .cal-legend{display:flex;flex-wrap:wrap;gap:6px 12px;padding:8px 12px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
 .cal-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
@@ -587,7 +596,7 @@ async function adminBoot(){
   document.title = "AYSOFT Personel · Yönetici";
   if (!A.token){ tabs([], null); who(null); return adminLogin(); }
   who("Yönetici", () => { rpc("cikis", { p_token: A.token }).catch(() => {}); logout(); });
-  tabs([["bekleyen", "Onay bekleyen"], ["kayitlar", "Kayıtlar"], ["hesap", "Hesap"], ["odeme", "Ödemeler"], ["izinler", "İzinler"], ["calisan", "Çalışanlar"]], A.tab, k => { A.tab = k; adminBoot(); });
+  tabs([["bekleyen", "Onay bekleyen"], ["kayitlar", "Kayıtlar"], ["hesap", "Hesap"], ["odeme", "Ödemeler"], ["izinler", "Pazar / İzin"], ["calisan", "Çalışanlar"]], A.tab, k => { A.tab = k; A.leaveOf = null; adminBoot(); });
   app.textContent = "";
   try { A.people = await rpc("y_calisanlar", { p_token: A.token }) || []; }
   catch (e) { app.append(note(e.message)); return; }
@@ -783,19 +792,65 @@ async function adminPayments(){
 }
 
 async function adminLeaves(){
-  const list = h("div", { style: "display:flex;flex-direction:column;gap:8px" }, h("p", { class: "muted" }, "Yükleniyor…"));
-  app.append(h("h2", {}, "Girilen izinler"), list);
+  const box = h("div", { style: "display:flex;flex-direction:column;gap:10px" });
+  app.append(box);
+  if (A.leaveOf) return pazarProfil(box, A.leaveOf, () => { A.leaveOf = null; adminBoot(); });
+  box.append(h("h2", {}, "Pazar izinleri"), h("p", { class: "muted small" }, "Ayrıntı için çalışana dokun: çalıştığı pazarlar, kullandığı ve kalan izinler."));
+  const grid = h("div", { style: "display:flex;flex-direction:column;gap:8px" }, h("p", { class: "muted" }, "Yükleniyor…"));
+  const all = h("div", { style: "display:flex;flex-direction:column;gap:8px" });
+  box.append(grid, h("h2", { style: "margin-top:8px" }, "Son girilen izinler"), all);
   try {
-    const items = await rpc("y_izinler", { p_token: A.token }) || [];
-    list.textContent = "";
-    if (!items.length) list.append(h("p", { class: "muted" }, "Henüz izin girilmemiş."));
-    for (const i of items){
+    const [ozet, items] = await Promise.all([rpc("y_pazar_ozet", { p_token: A.token }), rpc("y_izinler", { p_token: A.token })]);
+    grid.textContent = "";
+    for (const o of ozet || []){
+      grid.append(h("button", { type: "button", class: "card person", onclick: () => { A.leaveOf = { id: o.id, ad: o.ad }; adminBoot(); } },
+        h("div", { class: "split" },
+          h("div", { style: "text-align:left" }, h("strong", {}, o.ad + (o.aktif ? "" : " (pasif)")),
+            h("div", { class: "muted small" }, o.kazanilan + " pazar çalıştı · " + o.kullanilan + " kullandı" + (o.normal_izin ? " · " + o.normal_izin + " normal izin" : ""))),
+          h("div", { class: "kalan" + (o.kalan > 0 ? " var" : "") }, h("b", {}, String(o.kalan)), h("span", {}, "kalan")))));
+    }
+    all.textContent = "";
+    if (!(items || []).length) all.append(h("p", { class: "muted" }, "Henüz izin girilmemiş."));
+    for (const i of (items || []).slice(0, 30)){
       const d = parse(i.tarih);
-      list.append(h("div", { class: "card" }, h("div", { class: "split" },
+      all.append(h("div", { class: "card" }, h("div", { class: "split" },
         h("div", {}, h("strong", {}, i.calisan), h("div", { class: "muted small" }, tr(i.tarih) + " " + GUNLER[d.getDay()] + (i.aciklama ? " · " + i.aciklama : ""))),
         h("span", { class: "tag " + (i.pazar_izni ? "ok" : "used") }, i.pazar_izni ? "Pazar izni" : "İzin"))));
     }
-  } catch (e) { list.replaceChildren(note(e.message)); }
+  } catch (e) { grid.replaceChildren(note(e.message)); }
+}
+
+// Bir çalışanın pazar izni profili (yönetici)
+async function pazarProfil(box, who, back){
+  box.append(h("div", { class: "split" }, h("h2", {}, who.ad), h("button", { class: "btn", onclick: back }, "‹ Geri")));
+  const body = h("div", { style: "display:flex;flex-direction:column;gap:8px" }, h("p", { class: "muted" }, "Yükleniyor…"));
+  box.append(body);
+  try {
+    const r = await rpc("y_pazar_durumu", { p_token: A.token, p_calisan: who.id });
+    const used = r.pazarlar.filter(p => p.kullanildi).length;
+    body.textContent = "";
+    body.append(h("div", { class: "card" }, h("div", { class: "stats" },
+      h("div", {}, h("b", {}, String(r.pazarlar.length)), h("span", {}, "Çalıştığı pazar")),
+      h("div", {}, h("b", {}, String(used)), h("span", {}, "Kullandığı")),
+      h("div", { class: "hl" }, h("b", {}, String(r.kalan)), h("span", {}, "Kalan")))));
+    const fazla = r.izinler.filter(i => i.pazar_izni).length - used;
+    if (fazla > 0) body.append(note(fazla + " pazar izni girilmiş ama karşılığında çalışılmış pazar yok (kayıt silinmiş olabilir).", "info"));
+    body.append(h("h2", {}, "Çalıştığı pazarlar"));
+    if (!r.pazarlar.length) body.append(h("p", { class: "muted" }, "Pazar günü içeren kaydı yok."));
+    for (const p of r.pazarlar.slice().reverse()){
+      body.append(h("div", { class: "card" }, h("div", { class: "split" },
+        h("div", {}, h("div", { style: "font-weight:600" }, "Pazar " + tr(p.pazar)), h("div", { class: "muted small" }, [p.firma, p.il].filter(Boolean).join(" · "))),
+        p.kullanildi ? h("span", { class: "tag used" }, "Kullandı · " + tr(p.kullanildi)) : h("span", { class: "tag ok" }, "Kullanmadı"))));
+    }
+    body.append(h("h2", {}, "Girdiği izinler"));
+    if (!r.izinler.length) body.append(h("p", { class: "muted" }, "İzin girmemiş."));
+    for (const i of r.izinler){
+      const d = parse(i.tarih);
+      body.append(h("div", { class: "card" }, h("div", { class: "split" },
+        h("div", {}, h("div", { style: "font-weight:600" }, tr(i.tarih) + " " + GUNLER[d.getDay()]), i.aciklama ? h("div", { class: "muted small" }, i.aciklama) : null),
+        h("span", { class: "tag " + (i.pazar_izni ? "ok" : "used") }, i.pazar_izni ? "Pazar izni" : "İzin"))));
+    }
+  } catch (e) { body.replaceChildren(note(e.message)); }
 }
 
 async function adminPeople(){
@@ -814,7 +869,9 @@ async function adminPeople(){
         if (!p) adminBoot();
       } catch (e) { out.replaceChildren(note(e.message)); }
     } }, p ? "Kaydet" : "Çalışan ekle");
-    return h("div", { class: "card" }, h("div", { class: "row" }, h("label", {}, "Ad", ad), h("label", {}, "Günlük ücret (TL)", ucret)),
+    const prof = p ? h("button", { class: "btn", type: "button", onclick: () => { A.leaveOf = { id: p.id, ad: p.ad }; A.tab = "izinler"; adminBoot(); } }, "Pazar izinleri") : null;
+    return h("div", { class: "card" }, prof ? h("div", { class: "split" }, h("strong", {}, p.ad), prof) : null,
+      h("div", { class: "row" }, h("label", {}, "Ad", ad), h("label", {}, "Günlük ücret (TL)", ucret)),
       h("div", { class: "row" }, h("label", {}, "Şifre", pin), h("label", { style: "flex-direction:row;align-items:center;gap:8px;color:var(--fg)" }, aktif, "Aktif (giriş yapabilir)")), out, save);
   }
   A.people.forEach(p => list.append(row(p)));
