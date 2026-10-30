@@ -75,6 +75,33 @@ tr.total td{font-weight:700;border-bottom:0}
 .pin{font:600 26px var(--mono);letter-spacing:.4em;text-align:center}
 .hidden{display:none!important}
 .split{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.cal{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.cal-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.cal-head strong{font-size:16px;flex:1;text-align:center}
+.cal-head button{background:var(--bg);border:1px solid var(--line);color:var(--fg);border-radius:8px;width:38px;height:34px;font:600 18px var(--sans);cursor:pointer}
+.cal-head .today{width:auto;padding:0 10px;font-size:13px}
+.cal-dow{display:grid;grid-template-columns:repeat(7,1fr);font-size:11px;font-weight:600;color:var(--muted);text-align:center;padding:6px 0;border-bottom:1px solid var(--line);letter-spacing:.04em}
+.cal-dow span:last-child{color:var(--bad)}
+.cal-week{position:relative;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-auto-rows:auto;min-height:74px;border-bottom:1px solid var(--line);padding-bottom:4px}
+.cal-week:last-child{border-bottom:0}
+.cal-bg{position:absolute;inset:0;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));pointer-events:none}
+.cal-bg div{border-right:1px solid var(--line)}
+.cal-bg div:last-child{border-right:0;background:color-mix(in srgb,var(--bad) 5%,transparent)}
+.cal-bg div.out{background:color-mix(in srgb,var(--line) 35%,transparent)}
+.cal-num{position:relative;font:500 12px var(--mono);font-variant-numeric:tabular-nums;padding:4px 5px 2px;color:var(--fg);display:flex;justify-content:space-between;align-items:center;gap:2px;min-width:0}
+.cal-num.out{color:var(--muted);opacity:.6}
+.cal-num.now span:first-child{background:var(--accent);color:#fff;border-radius:99px;padding:0 6px}
+.cal-num .lv{font:600 9px var(--sans);color:var(--ok);background:var(--ok-bg);border-radius:4px;padding:0 3px;overflow:hidden;white-space:nowrap}
+.cal-bar{position:relative;margin:2px 2px 0;height:22px;border-radius:6px;color:#fff;font:600 11.5px/22px var(--sans);text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:0 4px;cursor:pointer;border:0;min-width:0}
+.cal-bar.cont-l{border-top-left-radius:0;border-bottom-left-radius:0;margin-left:0}
+.cal-bar.cont-r{border-top-right-radius:0;border-bottom-right-radius:0;margin-right:0}
+.cal-bar.sel{outline:3px solid var(--fg);outline-offset:-1px}
+.cal-bar.wait{background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.18) 0 6px,transparent 6px 12px)}
+.cal-legend{display:flex;flex-wrap:wrap;gap:6px 12px;padding:8px 12px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.cal-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.seg button{border:0;background:var(--panel);color:var(--fg);font:500 14px var(--sans);padding:8px 14px;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--brand);color:#fff}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -151,6 +178,102 @@ function who(text, onOut){
 function busy(btn, on, label){ if (!btn) return; btn.disabled = on; if (label) btn.textContent = label; }
 
 
+/* ---------- takvim ---------- */
+const PALET = ["#e8710a","#1a73e8","#188038","#a142f4","#d93025","#007b83","#b06000","#c5221f","#3949ab","#00897b","#8e24aa","#5f6368"];
+// Her firmaya sırayla farklı renk verilir (çakışma olmasın); palet bitince hash'e düşer.
+const RENKLER = new Map();
+function firmaKey(name){ return (name || "").trim().toLocaleLowerCase("tr"); }
+function firmalariKaydet(list){
+  [...list].sort((p, q) => (p.baslangic < q.baslangic ? -1 : p.baslangic > q.baslangic ? 1 : 0)).forEach(it => firmaRenk(it.firma));
+}
+function firmaRenk(name){
+  const k = firmaKey(name);
+  if (RENKLER.has(k)) return RENKLER.get(k);
+  const taken = new Set(RENKLER.values());
+  let c = PALET.find(p => !taken.has(p));
+  if (!c){ let x = 0; for (const ch of k || "?") x = (x * 31 + ch.codePointAt(0)) >>> 0; c = PALET[x % PALET.length]; }
+  RENKLER.set(k, c);
+  return c;
+}
+const DOW = ["Pzt","Sal","Çar","Per","Cum","Cmt","Paz"];
+function mondayOf(d){ const x = new Date(d); const w = (x.getDay() + 6) % 7; x.setDate(x.getDate() - w); return x; }
+
+/**
+ * Aylık takvim. items: {id, baslangic, bitis, firma, ...}; label(it) şerit yazısı; marks: {"YYYY-MM-DD": "İzin"}.
+ * onPick(it) şeride dokununca; onMonth(y, m) ay değişince.
+ */
+function calendar({ items, label, marks = {}, onPick, onMonth, start, pendingOf }){
+  let cur = start ? new Date(start.getFullYear(), start.getMonth(), 1) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  let selected = null;
+  const root = h("div", { class: "cal" });
+  firmalariKaydet(items || []);
+  function render(){
+    root.textContent = "";
+    const y = cur.getFullYear(), m = cur.getMonth();
+    root.append(h("div", { class: "cal-head" },
+      h("button", { type: "button", "aria-label": "Önceki ay", onclick: () => go(-1) }, "‹"),
+      h("strong", {}, AYLAR[m] + " " + y),
+      h("button", { type: "button", class: "today", onclick: () => { const n = new Date(); cur = new Date(n.getFullYear(), n.getMonth(), 1); changed(); } }, "Bugün"),
+      h("button", { type: "button", "aria-label": "Sonraki ay", onclick: () => go(1) }, "›")));
+    root.append(h("div", { class: "cal-dow" }, DOW.map(d => h("span", {}, d))));
+    const first = new Date(y, m, 1), last = new Date(y, m + 1, 0);
+    const todayIso = today();
+    const used = new Set();
+    for (let ws = mondayOf(first); ws <= last; ws.setDate(ws.getDate() + 7)){
+      const wsIso = iso(ws), we = new Date(ws); we.setDate(we.getDate() + 6); const weIso = iso(we);
+      const week = h("div", { class: "cal-week" });
+      const bg = h("div", { class: "cal-bg" });
+      for (let i = 0; i < 7; i++){
+        const d = new Date(ws); d.setDate(d.getDate() + i);
+        const out = d.getMonth() !== m, di = iso(d);
+        bg.append(h("div", { class: out ? "out" : "" }));
+        week.append(h("div", { class: "cal-num" + (out ? " out" : "") + (di === todayIso ? " now" : ""), style: "grid-column:" + (i + 1) + ";grid-row:1" },
+          h("span", {}, d.getDate()), marks[di] ? h("span", { class: "lv" }, marks[di]) : null));
+      }
+      week.prepend(bg);
+      // bu haftaya düşen kayıt parçaları, şeritlere yerleştir
+      const segs = items.filter(it => it.baslangic <= weIso && it.bitis >= wsIso)
+        .map(it => {
+          const a = it.baslangic < wsIso ? wsIso : it.baslangic, b = it.bitis > weIso ? weIso : it.bitis;
+          return { it, a: days(wsIso, a) - 1, b: days(wsIso, b) - 1, cl: it.baslangic < wsIso, cr: it.bitis > weIso };
+        })
+        .sort((p, q) => p.a - q.a || (q.b - q.a) - (p.b - p.a));
+      const lanes = [];
+      for (const sg of segs){
+        let li = lanes.findIndex(end => end < sg.a);
+        if (li < 0){ li = lanes.length; lanes.push(-1); }
+        lanes[li] = sg.b;
+        const col = firmaRenk(sg.it.firma);
+        used.add(sg.it.firma || "—");
+        const bar = h("button", {
+          type: "button",
+          class: "cal-bar" + (sg.cl ? " cont-l" : "") + (sg.cr ? " cont-r" : "") + (selected === sg.it.id ? " sel" : "") + (pendingOf && pendingOf(sg.it) ? " wait" : ""),
+          style: "grid-column:" + (sg.a + 1) + " / span " + (sg.b - sg.a + 1) + ";grid-row:" + (li + 2) + ";background-color:" + col,
+          title: (label(sg.it)) + " · " + tr(sg.it.baslangic) + (sg.it.bitis !== sg.it.baslangic ? "–" + tr(sg.it.bitis) : ""),
+          onclick: () => { selected = sg.it.id; render(); onPick && onPick(sg.it); }
+        }, label(sg.it));
+        week.append(bar);
+      }
+      root.append(week);
+    }
+    if (used.size){
+      root.append(h("div", { class: "cal-legend" }, [...used].map(f => h("span", {}, h("i", { style: "background:" + firmaRenk(f === "—" ? "" : f) }), f))));
+    }
+  }
+  function go(n){ cur = new Date(cur.getFullYear(), cur.getMonth() + n, 1); changed(); }
+  function changed(){ render(); onMonth && onMonth(cur.getFullYear(), cur.getMonth()); }
+  root.setItems = (list, mk) => { items = list; firmalariKaydet(list); if (mk) marks = mk; render(); };
+  root.month = () => [cur.getFullYear(), cur.getMonth()];
+  render();
+  return root;
+}
+
+function viewToggle(current, onPick){
+  const b1 = h("button", { type: "button", "aria-pressed": String(current === "takvim"), onclick: () => onPick("takvim") }, "Takvim");
+  const b2 = h("button", { type: "button", "aria-pressed": String(current === "liste"), onclick: () => onPick("liste") }, "Liste");
+  return h("div", { class: "seg" }, b1, b2);
+}
+
 /* =====================================================================
    ÇALIŞAN
    ===================================================================== */
@@ -201,45 +324,69 @@ async function staffLogin(msg){
   });
 }
 
+function staffEntryCard(it, onChanged){
+  const n = days(it.baslangic, it.bitis), pz = sundays(it.baslangic, it.bitis);
+  const card = h("div", { class: "card", style: "border-left:5px solid " + firmaRenk(it.firma) });
+  const del = h("button", { class: "btn link", onclick: async () => {
+    if (del.dataset.sure !== "1"){ del.dataset.sure = "1"; del.textContent = "Silmek için tekrar dokun"; return; }
+    try { await rpc("kayit_sil", { p_token: S.token, p_id: it.id }); onChanged(); }
+    catch (e) { card.append(note(e.message)); }
+  } }, "Sil");
+  card.append(
+    h("div", { class: "entry" },
+      h("div", { class: "date" }, it.baslangic === it.bitis ? tr(it.baslangic) : trShort(it.baslangic) + "–" + tr(it.bitis)),
+      h("div", {}, h("div", { class: "t" }, it.firma || "—"), h("div", { class: "muted small" }, [it.ilce, it.il].filter(Boolean).join(" / ") + " · " + n + " gün" + (pz ? " · " + pz + " pazar" : "")))),
+    it.arkadaslar ? h("div", { class: "small" }, "Birlikte: " + it.arkadaslar) : null,
+    it.aciklama ? h("div", { class: "small", style: "white-space:pre-wrap" }, it.aciklama) : null,
+    h("div", { class: "split" }, h("span", { class: "muted small" }, "Girildi: " + new Date(it.olusturma).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" })), del));
+  return card;
+}
+
 async function staffEntries(){
+  S.view = S.view || LS.get("ap_view") || "takvim";
   const head = h("div", { class: "split" }, h("h2", {}, "Kayıtlarım"));
   const addBtn = h("button", { class: "btn primary", onclick: () => { form.classList.toggle("hidden"); if (!form.classList.contains("hidden")) $("#f-firma").focus(); } }, "+ Yeni kayıt");
   head.append(addBtn);
   const form = entryForm(() => { form.classList.add("hidden"); load(); });
   form.classList.add("hidden");
-  const list = h("div", { style: "display:flex;flex-direction:column;gap:8px" }, h("p", { class: "muted" }, "Yükleniyor…"));
-  app.append(head, form, list);
-  async function load(){
-    try {
-      const items = await rpc("kayitlarim", { p_token: S.token }) || [];
-      list.textContent = "";
-      if (!items.length){
-        list.append(h("div", { class: "card" }, h("p", { class: "muted" }, "Henüz kayıt yok. “+ Yeni kayıt” ile nerede, kimle, hangi tarihlerde çalıştığını gir. Aynı güne birden fazla kayıt girebilirsin.")));
-        form.classList.remove("hidden");
-        return;
-      }
-      window._firmalar = [...new Set(items.map(i => i.firma).filter(Boolean))];
-      const dl = $("#firmalar"); if (dl){ dl.textContent = ""; window._firmalar.forEach(f => dl.append(h("option", { value: f }))); }
+  const toggle = h("div");
+  const body = h("div", { style: "display:flex;flex-direction:column;gap:8px" }, h("p", { class: "muted" }, "Yükleniyor…"));
+  app.append(head, form, toggle, body);
+  let items = [], marks = {};
+  function draw(){
+    toggle.replaceChildren(viewToggle(S.view, v => { S.view = v; LS.set("ap_view", v); draw(); }));
+    body.textContent = "";
+    if (!items.length){
+      body.append(h("div", { class: "card" }, h("p", { class: "muted" }, "Henüz kayıt yok. “+ Yeni kayıt” ile nerede, kimle, hangi tarihlerde çalıştığını gir. Aynı güne birden fazla kayıt girebilirsin.")));
+      form.classList.remove("hidden");
+      return;
+    }
+    if (S.view === "takvim"){
+      const detail = h("div", {}, h("p", { class: "muted small" }, "Ayrıntı için takvimdeki bir şeride dokun."));
+      const latest = items[0] ? parse(items[0].baslangic) : new Date();
+      const cal = calendar({ items, marks, label: it => it.firma || "—", start: S.calMonth || latest,
+        onPick: it => detail.replaceChildren(staffEntryCard(it, load)),
+        onMonth: (y, m) => { S.calMonth = new Date(y, m, 1); detail.replaceChildren(h("p", { class: "muted small" }, "Ayrıntı için takvimdeki bir şeride dokun.")); } });
+      body.append(cal, detail);
+    } else {
       let month = "";
       for (const it of items){
         const d = parse(it.baslangic), m = AYLAR[d.getMonth()] + " " + d.getFullYear();
-        if (m !== month){ month = m; list.append(h("div", { class: "month" }, m)); }
-        const n = days(it.baslangic, it.bitis), pz = sundays(it.baslangic, it.bitis);
-        const del = h("button", { class: "btn link", onclick: async () => {
-          if (del.dataset.sure !== "1"){ del.dataset.sure = "1"; del.textContent = "Silmek için tekrar dokun"; return; }
-          try { await rpc("kayit_sil", { p_token: S.token, p_id: it.id }); load(); }
-          catch (e) { card.append(note(e.message)); }
-        } }, "Sil");
-        const card = h("div", { class: "card" },
-          h("div", { class: "entry" },
-            h("div", { class: "date" }, it.baslangic === it.bitis ? tr(it.baslangic) : trShort(it.baslangic) + "–" + tr(it.bitis)),
-            h("div", {}, h("div", { class: "t" }, it.firma || "—"), h("div", { class: "muted small" }, [it.ilce, it.il].filter(Boolean).join(" / ") + " · " + n + " gün" + (pz ? " · " + pz + " pazar" : "")))),
-          it.arkadaslar ? h("div", { class: "small" }, "Birlikte: " + it.arkadaslar) : null,
-          it.aciklama ? h("div", { class: "small", style: "white-space:pre-wrap" }, it.aciklama) : null,
-          h("div", { class: "split" }, h("span", { class: "muted small" }, "Girildi: " + new Date(it.olusturma).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" })), del));
-        list.append(card);
+        if (m !== month){ month = m; body.append(h("div", { class: "month" }, m)); }
+        body.append(staffEntryCard(it, load));
       }
-    } catch (e) { list.replaceChildren(note(e.message)); }
+    }
+  }
+  async function load(){
+    try {
+      const [list, pz] = await Promise.all([rpc("kayitlarim", { p_token: S.token }), rpc("pazar_durumum", { p_token: S.token }).catch(() => null)]);
+      items = list || [];
+      marks = {};
+      if (pz) pz.izinler.forEach(i => { marks[i.tarih] = i.pazar_izni ? "P.İzin" : "İzin"; });
+      window._firmalar = [...new Set(items.map(i => i.firma).filter(Boolean))];
+      const dl = $("#firmalar"); if (dl){ dl.textContent = ""; window._firmalar.forEach(f => dl.append(h("option", { value: f }))); }
+      draw();
+    } catch (e) { body.replaceChildren(note(e.message)); }
   }
   load();
 }
@@ -445,18 +592,35 @@ function personSelect(id, withAll = true){
 function monthRange(offset = 0){ const d = new Date(); const a = new Date(d.getFullYear(), d.getMonth() + offset, 1); const b = new Date(d.getFullYear(), d.getMonth() + offset + 1, 0); return [iso(a), iso(b)]; }
 
 async function adminEntries(){
-  const [a, b] = monthRange(0);
-  const who_ = personSelect("k-kisi"), bas = h("input", { type: "date", id: "k-bas", value: a }), bit = h("input", { type: "date", id: "k-bit", value: b });
+  A.view = A.view || LS.get("ap_aview") || "takvim";
+  const who_ = personSelect("k-kisi");
   const dur = h("select", { id: "k-dur" }, h("option", { value: "hepsi" }, "Hepsi"), h("option", { value: "onayli" }, "Onaylı"), h("option", { value: "bekleyen" }, "Bekleyen"));
+  const [a, b] = monthRange(0);
+  const bas = h("input", { type: "date", id: "k-bas", value: a }), bit = h("input", { type: "date", id: "k-bit", value: b });
+  const dateRow = h("div", { class: "row" }, h("label", {}, "Başlangıç", bas), h("label", {}, "Bitiş", bit));
+  const toggle = h("div");
   const list = h("div", { style: "display:flex;flex-direction:column;gap:10px" });
-  app.append(h("h2", {}, "Kayıtlar"), h("div", { class: "card" }, h("div", { class: "row" }, h("label", {}, "Çalışan", who_), h("label", {}, "Durum", dur)), h("div", { class: "row" }, h("label", {}, "Başlangıç", bas), h("label", {}, "Bitiş", bit))), list);
+  app.append(h("h2", {}, "Kayıtlar"), h("div", { class: "card" }, h("div", { class: "row" }, h("label", {}, "Çalışan", who_), h("label", {}, "Durum", dur)), dateRow), toggle, list);
   async function load(){
+    toggle.replaceChildren(viewToggle(A.view, v => { A.view = v; LS.set("ap_aview", v); load(); }));
+    dateRow.classList.toggle("hidden", A.view === "takvim");
     list.replaceChildren(h("p", { class: "muted" }, "Yükleniyor…"));
     try {
-      const items = await rpc("y_kayitlar", { p_token: A.token, p_durum: dur.value, p_calisan: who_.value ? Number(who_.value) : null, p_bas: bas.value || null, p_bit: bit.value || null }) || [];
+      const cal = A.view === "takvim";
+      const items = await rpc("y_kayitlar", { p_token: A.token, p_durum: dur.value, p_calisan: who_.value ? Number(who_.value) : null,
+        p_bas: cal ? null : (bas.value || null), p_bit: cal ? null : (bit.value || null) }) || [];
       list.textContent = "";
-      list.append(h("p", { class: "muted small" }, items.length + " kayıt"));
-      items.forEach(it => list.append(entryCard(it, load, false)));
+      if (cal){
+        const detail = h("div", {}, h("p", { class: "muted small" }, "Ayrıntı ve onay için bir şeride dokun. Çizgili şeritler onay bekliyor."));
+        const one = !!who_.value;
+        list.append(calendar({ items, start: A.calMonth, pendingOf: it => !it.onay,
+          label: it => one ? (it.firma || "—") : (it.calisan.split(" ")[0] + " · " + (it.firma || "—")),
+          onPick: it => detail.replaceChildren(entryCard(it, load, false)),
+          onMonth: (y, m) => { A.calMonth = new Date(y, m, 1); } }), detail);
+      } else {
+        list.append(h("p", { class: "muted small" }, items.length + " kayıt"));
+        items.forEach(it => list.append(entryCard(it, load, false)));
+      }
     } catch (e) { list.replaceChildren(note(e.message)); }
   }
   [who_, dur, bas, bit].forEach(x => x.addEventListener("change", load));
