@@ -110,6 +110,10 @@ tr.total td{font-weight:700;border-bottom:0}
 .stats div{display:flex;flex-direction:column;gap:2px;padding:6px;border-radius:10px;background:var(--bg)}
 .stats b{font:700 26px var(--mono)}.stats span{font-size:12px;color:var(--muted)}
 .stats .hl{background:var(--ok-bg)}.stats .hl b{color:var(--ok)}
+label.check{flex-direction:row;align-items:flex-start;gap:10px;color:var(--fg);font-size:15px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);cursor:pointer}
+label.check input{margin-top:3px;width:18px!important;height:18px}
+label.check span{display:flex;flex-direction:column;gap:2px}label.check small{color:var(--muted);font-size:12.5px}
+.tag.mk{background:#fdecd8;color:#9a4a00}
 .cal-legend{display:flex;flex-wrap:wrap;gap:6px 12px;padding:8px 12px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
 .cal-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
@@ -410,7 +414,7 @@ function staffEntryCard(it, onChanged){
   } }, "Sil");
   card.append(
     h("div", { class: "entry" },
-      h("div", { class: "date" }, it.baslangic === it.bitis ? tr(it.baslangic) : trShort(it.baslangic) + "–" + tr(it.bitis)),
+      h("div", { class: "date" }, it.baslangic === it.bitis ? tr(it.baslangic) : trShort(it.baslangic) + "–" + tr(it.bitis), it.makine ? h("div", {}, h("span", { class: "tag mk" }, "⚙ Makine")) : null),
       h("div", {}, h("div", { class: "t" }, it.firma || "—"), h("div", { class: "muted small" }, [it.ilce, it.il].filter(Boolean).join(" / ") + " · " + n + " gün" + (pz ? " · " + pz + " pazar" : "")))),
     it.arkadaslar ? h("div", { class: "small" }, "Birlikte: " + it.arkadaslar) : null,
     it.aciklama ? h("div", { class: "small", style: "white-space:pre-wrap" }, it.aciklama) : null,
@@ -447,7 +451,7 @@ async function staffEntries(){
       const hint = () => h("p", { class: "muted small" }, "Ayrıntı için bir şeride dokun. Yeni kayıt için boş bir güne dokun ya da günlerin üzerinde basılı tutup sürükle.");
       const detail = h("div", {}, hint());
       const latest = items[0] ? parse(items[0].baslangic) : new Date();
-      const cal = calendar({ items, marks, label: it => it.firma || "—", start: S.calMonth || latest,
+      const cal = calendar({ items, marks, label: it => (it.makine ? "⚙ " : "") + (it.firma || "—"), start: S.calMonth || latest,
         onPick: it => detail.replaceChildren(staffEntryCard(it, load)),
         onRange: (a, b) => openForm(a, b),
         onMonth: (y, m) => { S.calMonth = new Date(y, m, 1); detail.replaceChildren(hint()); } });
@@ -490,6 +494,7 @@ function entryForm(onSaved){
     return b;
   }));
   const extra = h("input", { id: "f-diger", placeholder: "Listede olmayan (isteğe bağlı)" });
+  const makine = h("input", { type: "checkbox", id: "f-makine", style: "width:auto" });
   const acik = h("textarea", { id: "f-acik", placeholder: "Ne iş yapıldı, nerede kalındı, notlar… Pazar çalıştıysan burada da belirt." });
   const info = h("div", { class: "note info" });
   const out = h("div");
@@ -505,6 +510,7 @@ function entryForm(onSaved){
   f.append(h("h2", {}, "Yeni kayıt"),
     h("div", { class: "row" }, h("label", {}, "Başlangıç", bas), h("label", {}, "Bitiş", bit)),
     info,
+    h("label", { class: "check" }, makine, h("span", {}, h("b", {}, "Makine işi"), h("small", {}, "Birkaç gün toplu makine hazırladıysanız işaretleyin."))),
     h("label", {}, "Firma / iş yeri", firma), h("datalist", { id: "firmalar" }, (window._firmalar || []).map(x => h("option", { value: x }))),
     h("div", { class: "row" }, h("label", {}, "İl", il), h("label", {}, "İlçe", ilce)),
     h("label", {}, "Birlikte çalıştığın arkadaşlar"), chips, extra,
@@ -516,9 +522,9 @@ function entryForm(onSaved){
     const ark = [...picked, extra.value.trim()].filter(Boolean).join(", ");
     busy(save, true, "Kaydediliyor…");
     try {
-      await rpc("kayit_ekle", { p_token: S.token, p_baslangic: bas.value, p_bitis: bit.value, p_firma: firma.value, p_il: il.value, p_ilce: ilce.value, p_arkadaslar: ark, p_aciklama: acik.value });
+      await rpc("kayit_ekle", { p_token: S.token, p_baslangic: bas.value, p_bitis: bit.value, p_firma: firma.value, p_il: il.value, p_ilce: ilce.value, p_arkadaslar: ark, p_aciklama: acik.value, p_makine: makine.checked });
       out.append(note("Kaydedildi.", "ok"));
-      firma.value = ""; ilce.value = ""; acik.value = ""; extra.value = ""; picked.clear(); chips.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", "false"));
+      firma.value = ""; ilce.value = ""; acik.value = ""; makine.checked = false; extra.value = ""; picked.clear(); chips.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", "false"));
       setTimeout(onSaved, 500);
     } catch (e) { out.append(note(e.message)); }
     busy(save, false, "Kaydet");
@@ -645,13 +651,20 @@ function entryCard(it, reload, pending){
     try { await rpc("y_kayit_sil", { p_token: A.token, p_id: it.id }); reload(); } catch (e) { out.replaceChildren(note(e.message)); }
   } }, "Sil");
   const pz = sundays(it.baslangic, it.bitis);
+  const mk = h("input", { type: "checkbox", checked: !!it.makine, style: "width:auto", onchange: async () => {
+    try { await rpc("y_makine_isi", { p_token: A.token, p_id: it.id, p_makine: mk.checked }); it.makine = mk.checked; mkInfo.textContent = mkText(); out.replaceChildren(note(mk.checked ? "Makine işi olarak işaretlendi." : "Normal gün kaydı yapıldı.", "ok")); }
+    catch (e) { mk.checked = !mk.checked; out.replaceChildren(note(e.message)); }
+  } });
+  const mkText = () => it.makine ? "Günlük ücrete sayılmaz; bu iş için sadece makine ücreti alınır." : "Günler günlük ücrete sayılır.";
+  const mkInfo = h("small", {}, mkText());
   return h("div", { class: "card" },
-    h("div", { class: "split" }, h("strong", {}, it.calisan), h("span", { class: "tag " + (it.onay ? "ok" : "wait") }, it.onay ? "Onaylı" : "Bekliyor")),
+    h("div", { class: "split" }, h("strong", {}, it.calisan), h("span", { style: "display:flex;gap:6px" }, it.makine ? h("span", { class: "tag mk" }, "⚙ Makine") : null, h("span", { class: "tag " + (it.onay ? "ok" : "wait") }, it.onay ? "Onaylı" : "Bekliyor"))),
     h("div", { class: "entry" },
       h("div", { class: "date" }, it.baslangic === it.bitis ? tr(it.baslangic) : trShort(it.baslangic) + "–" + tr(it.bitis)),
       h("div", {}, h("div", { class: "t" }, it.firma || "—"), h("div", { class: "muted small" }, [it.ilce, it.il].filter(Boolean).join(" / ") + " · " + it.gun + " gün" + (pz ? " · " + pz + " pazar" : "")))),
     it.arkadaslar ? h("div", { class: "small" }, "Birlikte: " + it.arkadaslar) : null,
     it.aciklama ? h("div", { class: "small", style: "white-space:pre-wrap" }, it.aciklama) : null,
+    h("label", { class: "check" }, mk, h("span", {}, h("b", {}, "Makine işi"), mkInfo)),
     h("div", { class: "row" }, h("label", {}, "Makine / iş ücreti (TL)", fee), saveFee),
     out,
     h("div", { class: "row" }, approve, del));
@@ -699,7 +712,7 @@ async function adminEntries(){
         const detail = h("div", {}, h("p", { class: "muted small" }, "Ayrıntı ve onay için bir şeride dokun. Çizgili şeritler onay bekliyor."));
         const one = !!who_.value;
         list.append(calendar({ items, start: A.calMonth, pendingOf: it => !it.onay,
-          label: it => one ? (it.firma || "—") : (it.calisan.split(" ")[0] + " · " + (it.firma || "—")),
+          label: it => (it.makine ? "⚙ " : "") + (one ? (it.firma || "—") : (it.calisan.split(" ")[0] + " · " + (it.firma || "—"))),
           onPick: it => detail.replaceChildren(entryCard(it, load, false)),
           onMonth: (y, m) => { A.calMonth = new Date(y, m, 1); } }), detail);
       } else {
@@ -721,7 +734,7 @@ async function adminAccount(){
     h("button", { class: "chip", type: "button", onclick: () => { bas.value = ""; bit.value = ""; load(); } }, "Tüm zamanlar"));
   const box = h("div", { style: "display:flex;flex-direction:column;gap:10px" });
   app.append(h("h2", {}, "Hesap"), h("div", { class: "card" }, h("div", { class: "row" }, h("label", {}, "Başlangıç", bas), h("label", {}, "Bitiş", bit)), quick,
-    h("p", { class: "muted small" }, "Hak ediş = onaylı kayıtlardaki farklı günler × günlük ücret + onaylı kayıtların makine/iş ücreti. Bakiye = hak ediş − dönemde yatırılanlar.")), box);
+    h("p", { class: "muted small" }, "Hak ediş = onaylı kayıtlardaki farklı günler × günlük ücret + onaylı kayıtların makine/iş ücreti. ⚙ Makine işi işaretli kayıtların günleri sayılmaz, sadece makine ücreti eklenir. Bakiye = hak ediş − dönemde yatırılanlar.")), box);
   async function load(){
     box.replaceChildren(h("p", { class: "muted" }, "Hesaplanıyor…"));
     try {
@@ -732,7 +745,8 @@ async function adminAccount(){
         const gunluk = r.gun * r.gunluk_ucret, hak = gunluk + Number(r.makine), bak = hak - Number(r.odenen);
         T.gun += r.gun; T.gunluk += gunluk; T.makine += Number(r.makine); T.hak += hak; T.odenen += Number(r.odenen); T.bakiye += bak;
         tb.append(h("tr", {},
-          h("td", {}, r.ad + (r.aktif ? "" : " (pasif)"), r.bekleyen_gun ? h("div", { class: "muted small" }, r.bekleyen_gun + " gün onay bekliyor") : null),
+          h("td", {}, r.ad + (r.aktif ? "" : " (pasif)"), r.bekleyen_gun ? h("div", { class: "muted small" }, r.bekleyen_gun + " gün onay bekliyor") : null,
+            r.ucretsiz_makine ? h("div", { class: "small", style: "color:var(--bad)" }, r.ucretsiz_makine + " makine işinin ücreti girilmemiş") : null),
           h("td", {}, r.gun), h("td", {}, TL(r.gunluk_ucret)), h("td", {}, TL(gunluk)), h("td", {}, TL(r.makine)),
           h("td", { style: "font-weight:600" }, TL(hak)), h("td", {}, TL(r.odenen)),
           h("td", { class: bak >= 0 ? "pos" : "neg", style: "font-weight:700" }, TL(bak)),
