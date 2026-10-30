@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>AYSOFT Personel</title>
+<meta name="theme-color" content="#16325c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Düzen: tek sütun, üstte kurum şeridi + sekmeler; kartlar sade, durum renkleri yalnızca anlam taşırken */
+:root{
+  --bg:#f3f5f8; --panel:#ffffff; --line:#dde3ea; --fg:#14202e; --muted:#5d6b7b;
+  --brand:#16325c; --brand-ink:#ffffff; --accent:#1f6feb;
+  --ok:#1a7f4b; --ok-bg:#e5f4ec; --warn:#a15c00; --warn-bg:#fdf1de; --bad:#b42318; --bad-bg:#fdecea;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0f141b; --panel:#171e27; --line:#2a3542; --fg:#e7edf4; --muted:#93a1b1;
+  --brand:#16325c; --brand-ink:#ffffff; --accent:#5b9dff;
+  --ok:#4cc38a; --ok-bg:#12291f; --warn:#f0b35a; --warn-bg:#2c2312; --bad:#ff7b72; --bad-bg:#331a19; color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 var(--sans)}
+body{padding-bottom:env(safe-area-inset-bottom,0px)}
+header{background:var(--brand);color:var(--brand-ink);padding:calc(10px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px))}
+.hrow{display:flex;align-items:center;gap:10px;max-width:880px;margin:0 auto;padding-bottom:10px}
+.logo{font-weight:700;letter-spacing:.06em;font-size:14px}
+.logo small{display:block;font-weight:400;letter-spacing:0;opacity:.75;font-size:12px}
+.who{margin-left:auto;text-align:right;font-size:13px}
+.who button{background:none;border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:8px;padding:4px 10px;font:inherit;cursor:pointer;margin-left:8px}
+nav{display:flex;gap:2px;max-width:880px;margin:0 auto;overflow-x:auto;scrollbar-width:none}
+nav button{background:none;border:0;color:rgba(255,255,255,.72);font:500 14px var(--sans);padding:10px 12px;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap}
+nav button[aria-selected=true]{color:#fff;border-bottom-color:#7fb0ff}
+main{max-width:880px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-left,0px)) 40px max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:12px}
+h2{font-size:18px;margin:4px 0 0;text-wrap:balance}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.muted{color:var(--muted)} .small{font-size:13px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.row>*{flex:1 1 150px;min-width:0}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);font-weight:500}
+input,select,textarea{font:15px var(--sans);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;width:100%;min-width:0}
+textarea{min-height:84px;resize:vertical}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.btn{font:600 15px var(--sans);border-radius:9px;padding:11px 16px;border:1px solid var(--line);background:var(--panel);color:var(--fg);cursor:pointer}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn.link{border:0;background:none;padding:4px 0;color:var(--accent);font-weight:500}
+.btn:disabled{opacity:.5;cursor:default}
+.note{border-radius:9px;padding:10px 12px;font-size:14px}
+.note.err{background:var(--bad-bg);color:var(--bad)} .note.ok{background:var(--ok-bg);color:var(--ok)} .note.info{background:var(--warn-bg);color:var(--warn)}
+.entry{display:grid;grid-template-columns:auto 1fr;gap:4px 12px}
+.date{font:500 13px var(--mono);font-variant-numeric:tabular-nums;color:var(--muted);white-space:nowrap}
+.entry .t{font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);border-radius:99px;padding:6px 12px;font:500 14px var(--sans);background:var(--panel);color:var(--fg);cursor:pointer}
+.chip[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#fff}
+.tag{display:inline-block;border-radius:99px;padding:2px 9px;font-size:12px;font-weight:600}
+.tag.ok{background:var(--ok-bg);color:var(--ok)} .tag.wait{background:var(--warn-bg);color:var(--warn)} .tag.used{background:var(--line);color:var(--muted)}
+.big{font:700 48px/1 var(--sans);font-variant-numeric:tabular-nums}
+.month{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-top:8px;font-weight:600}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;font-size:14px}
+th{font-size:12px;color:var(--muted);font-weight:600;background:var(--bg)}
+th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:inherit}
+td:first-child{background:var(--panel)}
+tr.total td{font-weight:700;border-bottom:0}
+.pos{color:var(--ok)} .neg{color:var(--bad)}
+.login{max-width:420px;margin:24px auto 0;width:100%}
+.pin{font:600 26px var(--mono);letter-spacing:.4em;text-align:center}
+.hidden{display:none!important}
+.split{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <div class="logo">AYSOFT<small id="sub">Personel · saha kayıtları</small></div>
+    <div class="who" id="who"></div>
+  </div>
+  <nav id="tabs" role="tablist"></nav>
+</header>
+<main id="app"></main>
+
+<script src="config.js"></script>
+<script>
+"use strict";
+const $ = (s, el = document) => el.querySelector(s);
+const app = $("#app");
+const ADMIN = location.hash === "#yonetici";
+const LS = { get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }, set(k,v){ try{ v == null ? localStorage.removeItem(k) : localStorage.setItem(k,v); }catch(e){} } };
+const IL = ["Adana","Adıyaman","Afyonkarahisar","Ağrı","Aksaray","Amasya","Ankara","Antalya","Ardahan","Artvin","Aydın","Balıkesir","Bartın","Batman","Bayburt","Bilecik","Bingöl","Bitlis","Bolu","Burdur","Bursa","Çanakkale","Çankırı","Çorum","Denizli","Diyarbakır","Düzce","Edirne","Elazığ","Erzincan","Erzurum","Eskişehir","Gaziantep","Giresun","Gümüşhane","Hakkari","Hatay","Iğdır","Isparta","İstanbul","İzmir","Kahramanmaraş","Karabük","Karaman","Kars","Kastamonu","Kayseri","Kırıkkale","Kırklareli","Kırşehir","Kilis","Kocaeli","Konya","Kütahya","Malatya","Manisa","Mardin","Mersin","Muğla","Muş","Nevşehir","Niğde","Ordu","Osmaniye","Rize","Sakarya","Samsun","Siirt","Sinop","Sivas","Şanlıurfa","Şırnak","Tekirdağ","Tokat","Trabzon","Tunceli","Uşak","Van","Yalova","Yozgat","Zonguldak"];
+const AYLAR = ["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
+const GUNLER = ["Pazar","Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi"];
+
+/* ---------- yardımcılar ---------- */
+function h(tag, attrs = {}, ...kids){
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})){
+    if (v == null || v === false) continue;
+    if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else if (k === "class") e.className = v;
+    else if (k === "html") e.innerHTML = v;
+    else e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) e.append(c.nodeType ? c : document.createTextNode(String(c)));
+  return e;
+}
+const pad = n => String(n).padStart(2, "0");
+const iso = d => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+const today = () => iso(new Date());
+const parse = s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+const tr = s => { const d = parse(s); return pad(d.getDate()) + "." + pad(d.getMonth() + 1) + "." + d.getFullYear(); };
+const trShort = s => { const d = parse(s); return pad(d.getDate()) + "." + pad(d.getMonth() + 1); };
+const days = (a, b) => Math.round((parse(b) - parse(a)) / 864e5) + 1;
+function sundays(a, b){ let n = 0; for (let d = parse(a); d <= parse(b); d.setDate(d.getDate() + 1)) if (d.getDay() === 0) n++; return n; }
+const TL = n => Number(n || 0).toLocaleString("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 2 });
+const note = (txt, kind = "err") => h("div", { class: "note " + kind, role: kind === "err" ? "alert" : "status" }, txt);
+
+async function rpc(fn, args = {}){
+  const headers = { "Content-Type": "application/json", apikey: window.SB_KEY };
+  if (String(window.SB_KEY).startsWith("eyJ")) headers.Authorization = "Bearer " + window.SB_KEY;
+  let r;
+  try { r = await fetch(window.SB_URL.replace(/\/$/, "") + "/rest/v1/rpc/" + fn, { method: "POST", headers, body: JSON.stringify(args) }); }
+  catch (e) { throw new Error("Sunucuya ulaşılamadı. İnternet bağlantını kontrol et."); }
+  const txt = await r.text();
+  let j = null; try { j = txt ? JSON.parse(txt) : null; } catch (e) {}
+  if (!r.ok){
+    const m = (j && (j.message || j.hint)) || ("Hata " + r.status);
+    if (/Oturum süresi doldu/.test(m)) { logout(true); }
+    throw new Error(m);
+  }
+  if (j && typeof j === "object" && !Array.isArray(j) && j.hata) throw new Error(j.hata);
+  return j;
+}
+
+function tabs(list, current, onPick){
+  const nav = $("#tabs"); nav.textContent = "";
+  list.forEach(([key, label]) => nav.append(h("button", { role: "tab", "aria-selected": String(key === current), onclick: () => onPick(key) }, label)));
+}
+function who(text, onOut){
+  const w = $("#who"); w.textContent = "";
+  if (text) w.append(text, h("button", { onclick: onOut }, "Çıkış"));
+}
+function busy(btn, on, label){ if (!btn) return; btn.disabled = on; if (label) btn.textContent = label; }
+
+
+/* =====================================================================
+   ÇALIŞAN
+   ===================================================================== */
+let S = { token: LS.get("ap_token"), ad: LS.get("ap_ad"), tab: "kayit", names: [] };
+
+function logout(expired){
+  if (ADMIN){ LS.set("ap_admin", null); location.reload(); return; }
+  const t = S.token; S.token = null; LS.set("ap_token", null);
+  if (t && !expired) rpc("cikis", { p_token: t }).catch(() => {});
+  staffBoot(expired ? "Oturum süresi doldu, tekrar giriş yap." : null);
+}
+
+async function staffBoot(msg){
+  $("#sub").textContent = "Personel · saha kayıtları";
+  if (!S.token){ tabs([], null); who(null); return staffLogin(msg); }
+  who(S.ad, () => logout(false));
+  tabs([["kayit", "Kayıtlarım"], ["pazar", "Pazar izinlerim"], ["izin", "İzin gir"]], S.tab, k => { S.tab = k; staffBoot(); });
+  app.textContent = "";
+  if (S.tab === "kayit") return staffEntries();
+  if (S.tab === "pazar") return staffSundays();
+  return staffLeave();
+}
+
+async function staffLogin(msg){
+  app.textContent = "";
+  const card = h("form", { class: "card login" });
+  const sel = h("select", { id: "ad", required: true }, h("option", { value: "" }, "Adını seç…"));
+  const pin = h("input", { id: "pin", class: "pin", type: "password", inputmode: "numeric", autocomplete: "current-password", maxlength: "8", placeholder: "••••", required: true });
+  const out = h("div");
+  const btn = h("button", { class: "btn primary", type: "submit" }, "Giriş yap");
+  card.append(h("h2", {}, "Giriş"), h("p", { class: "muted small" }, "Şehir dışı çalışmalarını, pazar mesailerini ve izinlerini buradan gir."),
+    h("label", {}, "Adın", sel), h("label", {}, "Şifre", pin), out, btn);
+  if (msg) out.append(note(msg, "info"));
+  app.append(card);
+  try {
+    const names = await rpc("calisan_adlari");
+    S.names = names || [];
+    S.names.forEach(n => sel.append(h("option", { value: n }, n)));
+    const last = LS.get("ap_ad"); if (last && S.names.includes(last)) sel.value = last;
+  } catch (e) { out.replaceChildren(note(e.message)); }
+  card.addEventListener("submit", async ev => {
+    ev.preventDefault(); out.textContent = ""; busy(btn, true, "Giriş yapılıyor…");
+    try {
+      const r = await rpc("giris", { p_ad: sel.value, p_pin: pin.value });
+      S.token = r.token; S.ad = r.ad; LS.set("ap_token", r.token); LS.set("ap_ad", r.ad); S.tab = "kayit";
+      staffBoot();
+    } catch (e) { out.append(note(e.message)); busy(btn, false, "Giriş yap"); pin.value = ""; pin.focus(); }
+  });
+}
+
+async function staffEntries(){
+  const head = h("div", { class: "split" }, h("h2", {}, "Kayıtlarım"));
+  const addBtn = h("button", { class: "btn primary", onclick: () => { form.classList.toggle("hidden"); if (!form.classList.contains("hidden")) $("#f-firma").focus(); } }, "+ Yeni kayıt");
+  head.append(addBtn);
+  const form = entryForm(() => { form.classList.add("hidden"); load(); });
+  form.classList.add("hidden");
+  const list = h("div", { style: "display:flex;flex-direction:column;gap:8px" }, h("p", { class: "muted" }, "Yükleniyor…"));
+  app.append(head, form, list);
+  async function load(){
+    try {
+      const items = await rpc("kayitlarim", { p_token: S.token }) || [];
+      list.textContent = "";
+      if (!items.length){
+        list.append(h("div", { class: "card" }, h("p", { class: "muted" }, "Henüz kayıt yok. “+ Yeni kayıt” ile nerede, kimle, hangi tarihlerde çalıştığını gir. Aynı güne birden fazla kayıt girebilirsin.")));
+        form.classList.remove("hidden");
+        return;
+      }
+      window._firmalar = [...new Set(items.map(i => i.firma).filter(Boolean))];
+      const dl = $("#firmalar"); if (dl){ dl.textContent = ""; window._firmalar.forEach(f => dl.append(h("option", { value: f }))); }
+      let month = "";
+      for (const it of items){
+        const d = parse(it.baslangic), m = AYLAR[d.getMonth()] + " " + d.getFullYear();
+        if (m !== month){ month = m; list.append(h("div", { class: "month" }, m)); }
+        const n = days(it.baslangic, it.bitis), pz = sundays(it.baslangic, it.bitis);
+        const del = h("button", { class: "btn link", onclick: async () => {
+          if (del.dataset.sure !== "1"){ del.dataset.sure = "1"; del.textContent = "Silmek için tekrar dokun"; return; }
+          try { await rpc("kayit_sil", { p_token: S.token, p_id: it.id }); load(); }
+          catch (e) { card.append(note(e.message)); }
+        } }, "Sil");
+        const card = h("div", { class: "card" },
+          h("div", { class: "entry" },
+            h("div", { class: "date" }, it.baslangic === it.bitis ? tr(it.baslangic) : trShort(it.baslangic) + "–" + tr(it.bitis)),
+            h("div", {}, h("div", { class: "t" }, it.firma || "—"), h("div", { class: "muted small" }, [it.ilce, it.il].filter(Boolean).join(" / ") + " · " + n + " gün" + (pz ? " · " + pz + " pazar" : "")))),
+          it.arkadaslar ? h("div", { class: "small" }, "Birlikte: " + it.arkadaslar) : null,
+          it.aciklama ? h("div", { class: "small", style: "white-space:pre-wrap" }, it.aciklama) : null,
+          h("div", { class: "split" }, h("span", { class: "muted small" }, "Girildi: " + new Date(it.olusturma).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" })), del));
+        list.append(card);
+      }
+    } catch (e) { list.replaceChildren(note(e.message)); }
+  }
+  load();
+}
+
+function entryForm(onSaved){
+  const t = today();
+  const f = h("form", { class: "card" });
+  const bas = h("input", { type: "date", id: "f-bas", value: t, required: true });
+  const bit = h("input", { type: "date", id: "f-bit", value: t, required: true });
+  const firma = h("input", { id: "f-firma", list: "firmalar", placeholder: "ör. Çevre Bims", autocomplete: "off" });
+  const il = h("select", { id: "f-il" }, h("option", { value: "" }, "İl seç…"), IL.map(x => h("option", { value: x }, x)));
+  const ilce = h("input", { id: "f-ilce", placeholder: "ör. Merkez" });
+  const others = (S.names || []).filter(n => n !== S.ad);
+  const picked = new Set();
+  const chips = h("div", { class: "chips" }, others.map(n => {
+    const b = h("button", { type: "button", class: "chip", "aria-pressed": "false", onclick: () => { picked.has(n) ? picked.delete(n) : picked.add(n); b.setAttribute("aria-pressed", String(picked.has(n))); } }, n);
+    return b;
+  }));
+  const extra = h("input", { id: "f-diger", placeholder: "Listede olmayan (isteğe bağlı)" });
+  const acik = h("textarea", { id: "f-acik", placeholder: "Ne iş yapıldı, nerede kalındı, notlar… Pazar çalıştıysan burada da belirt." });
+  const info = h("div", { class: "note info" });
+  const out = h("div");
+  const save = h("button", { class: "btn primary", type: "submit" }, "Kaydet");
+  function upd(){
+    if (!bas.value || !bit.value) return;
+    if (bit.value < bas.value){ info.textContent = "Bitiş tarihi başlangıçtan önce olamaz."; return; }
+    const n = days(bas.value, bit.value), pz = sundays(bas.value, bit.value);
+    info.textContent = n + " gün" + (pz ? " · içinde " + pz + " pazar var → " + pz + " pazar izni hakkı eklenecek." : " · bu aralıkta pazar yok.");
+  }
+  bas.addEventListener("change", () => { if (bit.value < bas.value) bit.value = bas.value; upd(); });
+  bit.addEventListener("change", upd);
+  f.append(h("h2", {}, "Yeni kayıt"),
+    h("div", { class: "row" }, h("label", {}, "Başlangıç", bas), h("label", {}, "Bitiş", bit)),
+    info,
+    h("label", {}, "Firma / iş yeri", firma), h("datalist", { id: "firmalar" }, (window._firmalar || []).map(x => h("option", { value: x }))),
+    h("div", { class: "row" }, h("label", {}, "İl", il), h("label", {}, "İlçe", ilce)),
+    h("label", {}, "Birlikte çalıştığın arkadaşlar"), chips, extra,
+    h("label", {}, "Açıklama / rapor", acik), out, save);
+  upd();
+  f.addEventListener("submit", async ev => {
+    ev.preventDefault(); out.textContent = "";
+    const ark = [...picked, extra.value.trim()].filter(Boolean).join(", ");
+    busy(save, true, "Kaydediliyor…");
+    try {
+      await rpc("kayit_ekle", { p_token: S.token, p_baslangic: bas.value, p_bitis: bit.value, p_firma: firma.value, p_il: il.value, p_ilce: ilce.value, p_arkadaslar: ark, p_aciklama: acik.value });
+      out.append(note("Kaydedildi.", "ok"));
+      firma.value = ""; ilce.value = ""; acik.value = ""; extra.value = ""; picked.clear(); chips.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", "false"));
+      setTimeout(onSaved, 500);
+    } catch (e) { out.append(note(e.message)); }
+    busy(save, false, "Kaydet");
+  });
+  return f;
+}
+
+async function staffSundays(){
+  const box = h("div", { style: "display:flex;flex-direction:column;gap:10px" }, h("p", { class: "muted" }, "Yükleniyor…"));
+  app.append(box);
+  try {
+    const r = await rpc("pazar_durumum", { p_token: S.token });
+    box.textContent = "";
+    box.append(h("div", { class: "card" },
+      h("div", { class: "muted small" }, "KULLANILABİLİR PAZAR İZNİ"),
+      h("div", { class: "big" }, String(r.kalan)),
+      h("div", { class: "muted small" }, "Kayıtlarındaki her pazar 1 izin hakkı verir. İzin kullandığında en eski tarihli hak kapanır.")));
+    if (!r.pazarlar.length){ box.append(h("div", { class: "card" }, h("p", { class: "muted" }, "Henüz pazar günü içeren kaydın yok."))); return; }
+    box.append(h("h2", {}, "Çalıştığın pazarlar"));
+    for (const p of r.pazarlar.slice().reverse()){
+      box.append(h("div", { class: "card" }, h("div", { class: "split" },
+        h("div", {}, h("div", { class: "t", style: "font-weight:600" }, "Pazar " + tr(p.pazar)), h("div", { class: "muted small" }, [p.firma, p.il].filter(Boolean).join(" · "))),
+        p.kullanildi ? h("span", { class: "tag used" }, "Kullanıldı · " + tr(p.kullanildi)) : h("span", { class: "tag ok" }, "Kullanılabilir"))));
+    }
+  } catch (e) { box.replaceChildren(note(e.message)); }
+}
+
+async function staffLeave(){
+  const f = h("form", { class: "card" });
+  const tarih = h("input", { type: "date", id: "i-tarih", value: today(), required: true });
+  const pz = h("input", { type: "checkbox", id: "i-pazar", checked: true, style: "width:auto" });
+  const acik = h("input", { id: "i-acik", placeholder: "İsteğe bağlı not" });
+  const out = h("div"), save = h("button", { class: "btn primary", type: "submit" }, "İzni kaydet");
+  const bal = h("span", { class: "muted small" });
+  f.append(h("h2", {}, "İzinli olduğun gün"), h("label", {}, "Tarih", tarih),
+    h("label", { style: "flex-direction:row;align-items:center;gap:10px;color:var(--fg);font-size:15px" }, pz, "Pazar izni kullanıldı"), bal,
+    h("label", {}, "Not", acik), out, save);
+  const list = h("div", { style: "display:flex;flex-direction:column;gap:8px" });
+  app.append(f, h("h2", {}, "Girdiğin izinler"), list);
+  async function load(){
+    try {
+      const r = await rpc("pazar_durumum", { p_token: S.token });
+      bal.textContent = "Kullanılabilir pazar iznin: " + r.kalan + (r.kalan < 1 ? " · pazar izni kullanamazsın, işareti kaldırıp normal izin girebilirsin." : "");
+      if (r.kalan < 1) pz.checked = false;
+      list.textContent = "";
+      if (!r.izinler.length) list.append(h("p", { class: "muted" }, "Henüz izin girmedin."));
+      for (const i of r.izinler){
+        const del = h("button", { class: "btn link", onclick: async () => {
+          if (del.dataset.sure !== "1"){ del.dataset.sure = "1"; del.textContent = "Silmek için tekrar dokun"; return; }
+          try { await rpc("izin_sil", { p_token: S.token, p_id: i.id }); load(); } catch (e) { list.prepend(note(e.message)); }
+        } }, "Sil");
+        const d = parse(i.tarih);
+        list.append(h("div", { class: "card" }, h("div", { class: "split" },
+          h("div", {}, h("div", { style: "font-weight:600" }, tr(i.tarih) + " " + GUNLER[d.getDay()]), i.aciklama ? h("div", { class: "muted small" }, i.aciklama) : null),
+          h("div", { style: "display:flex;gap:10px;align-items:center" }, h("span", { class: "tag " + (i.pazar_izni ? "ok" : "used") }, i.pazar_izni ? "Pazar izni" : "İzin"), del))));
+      }
+    } catch (e) { list.replaceChildren(note(e.message)); }
+  }
+  f.addEventListener("submit", async ev => {
+    ev.preventDefault(); out.textContent = ""; busy(save, true, "Kaydediliyor…");
+    try { await rpc("izin_ekle", { p_token: S.token, p_tarih: tarih.value, p_pazar_izni: pz.checked, p_aciklama: acik.value }); out.append(note("İzin kaydedildi.", "ok")); acik.value = ""; load(); }
+    catch (e) { out.append(note(e.message)); }
+    busy(save, false, "İzni kaydet");
+  });
+  load();
+}
+
+/* =====================================================================
+   YÖNETİCİ
+   ===================================================================== */
+let A = { token: LS.get("ap_admin"), tab: "bekleyen", people: [] };
+
+async function adminBoot(){
+  $("#sub").textContent = "Yönetici paneli";
+  document.title = "AYSOFT Personel · Yönetici";
+  if (!A.token){ tabs([], null); who(null); return adminLogin(); }
+  who("Yönetici", () => { rpc("cikis", { p_token: A.token }).catch(() => {}); logout(); });
+  tabs([["bekleyen", "Onay bekleyen"], ["kayitlar", "Kayıtlar"], ["hesap", "Hesap"], ["odeme", "Ödemeler"], ["izinler", "İzinler"], ["calisan", "Çalışanlar"]], A.tab, k => { A.tab = k; adminBoot(); });
+  app.textContent = "";
+  try { A.people = await rpc("y_calisanlar", { p_token: A.token }) || []; }
+  catch (e) { app.append(note(e.message)); return; }
+  ({ bekleyen: adminPending, kayitlar: adminEntries, hesap: adminAccount, odeme: adminPayments, izinler: adminLeaves, calisan: adminPeople })[A.tab]();
+}
+
+async function adminLogin(){
+  app.textContent = "";
+  const f = h("form", { class: "card login" });
+  const out = h("div");
+  let first = false;
+  try { first = !(await rpc("yonetici_kurulu")); } catch (e) { out.append(note(e.message)); }
+  const pw = h("input", { type: "password", id: "y-sifre", autocomplete: first ? "new-password" : "current-password", required: true, minlength: first ? "8" : null });
+  const pw2 = first ? h("input", { type: "password", id: "y-sifre2", autocomplete: "new-password", required: true }) : null;
+  const btn = h("button", { class: "btn primary", type: "submit" }, first ? "Şifreyi belirle ve gir" : "Giriş yap");
+  f.append(h("h2", {}, first ? "Yönetici şifresini belirle" : "Yönetici girişi"),
+    first ? h("p", { class: "muted small" }, "İlk kurulum. En az 8 karakterli, çalışanların bilmediği bir şifre seç. Bu şifre bir daha bu ekrandan değiştirilemez.") : null,
+    h("label", {}, "Şifre", pw), pw2 ? h("label", {}, "Şifre (tekrar)", pw2) : null, out, btn);
+  app.append(f);
+  f.addEventListener("submit", async ev => {
+    ev.preventDefault(); out.textContent = "";
+    if (first && pw.value !== pw2.value){ out.append(note("Şifreler aynı değil.")); return; }
+    busy(btn, true, "Bekle…");
+    try {
+      const r = await rpc(first ? "yonetici_kurulum" : "yonetici_giris", { p_sifre: pw.value });
+      A.token = r.token; LS.set("ap_admin", r.token); adminBoot();
+    } catch (e) { out.append(note(e.message)); busy(btn, false, first ? "Şifreyi belirle ve gir" : "Giriş yap"); }
+  });
+}
+
+function entryCard(it, reload, pending){
+  const fee = h("input", { type: "number", inputmode: "decimal", min: "0", step: "0.01", value: it.makine_ucreti ?? "", placeholder: "Makine / iş ücreti (TL)" });
+  const out = h("div");
+  const approve = h("button", { class: "btn " + (it.onay ? "" : "ok"), onclick: async () => {
+    try {
+      if (fee.value !== String(it.makine_ucreti ?? "")) await rpc("y_makine_ucreti", { p_token: A.token, p_id: it.id, p_tutar: fee.value === "" ? null : Number(fee.value) });
+      await rpc("y_onayla", { p_token: A.token, p_id: it.id, p_onay: !it.onay }); reload();
+    } catch (e) { out.replaceChildren(note(e.message)); }
+  } }, it.onay ? "Onayı kaldır" : "Onayla");
+  const saveFee = h("button", { class: "btn", onclick: async () => {
+    try { await rpc("y_makine_ucreti", { p_token: A.token, p_id: it.id, p_tutar: fee.value === "" ? null : Number(fee.value) }); out.replaceChildren(note("Ücret kaydedildi.", "ok")); }
+    catch (e) { out.replaceChildren(note(e.message)); }
+  } }, "Ücreti kaydet");
+  const del = h("button", { class: "btn danger", onclick: async () => {
+    if (del.dataset.sure !== "1"){ del.dataset.sure = "1"; del.textContent = "Emin misin? Tekrar dokun"; return; }
+    try { await rpc("y_kayit_sil", { p_token: A.token, p_id: it.id }); reload(); } catch (e) { out.replaceChildren(note(e.message)); }
+  } }, "Sil");
+  const pz = sundays(it.baslangic, it.bitis);
+  return h("div", { class: "card" },
+    h("div", { class: "split" }, h("strong", {}, it.calisan), h("span", { class: "tag " + (it.onay ? "ok" : "wait") }, it.onay ? "Onaylı" : "Bekliyor")),
+    h("div", { class: "entry" },
+      h("div", { class: "date" }, it.baslangic === it.bitis ? tr(it.baslangic) : trShort(it.baslangic) + "–" + tr(it.bitis)),
+      h("div", {}, h("div", { class: "t" }, it.firma || "—"), h("div", { class: "muted small" }, [it.ilce, it.il].filter(Boolean).join(" / ") + " · " + it.gun + " gün" + (pz ? " · " + pz + " pazar" : "")))),
+    it.arkadaslar ? h("div", { class: "small" }, "Birlikte: " + it.arkadaslar) : null,
+    it.aciklama ? h("div", { class: "small", style: "white-space:pre-wrap" }, it.aciklama) : null,
+    h("div", { class: "row" }, h("label", {}, "Makine / iş ücreti (TL)", fee), saveFee),
+    out,
+    h("div", { class: "row" }, approve, del));
+}
+
+async function adminPending(){
+  const list = h("div", { style: "display:flex;flex-direction:column;gap:10px" }, h("p", { class: "muted" }, "Yükleniyor…"));
+  app.append(h("h2", {}, "Onay bekleyen kayıtlar"), list);
+  async function load(){
+    try {
+      const items = await rpc("y_kayitlar", { p_token: A.token, p_durum: "bekleyen", p_calisan: null, p_bas: null, p_bit: null }) || [];
+      list.textContent = "";
+      if (!items.length) list.append(h("div", { class: "card" }, h("p", { class: "muted" }, "Onay bekleyen kayıt yok.")));
+      items.forEach(it => list.append(entryCard(it, load, true)));
+    } catch (e) { list.replaceChildren(note(e.message)); }
+  }
+  load();
+}
+
+function personSelect(id, withAll = true){
+  return h("select", { id }, withAll ? h("option", { value: "" }, "Herkes") : h("option", { value: "" }, "Çalışan seç…"), A.people.map(p => h("option", { value: p.id }, p.ad + (p.aktif ? "" : " (pasif)"))));
+}
+function monthRange(offset = 0){ const d = new Date(); const a = new Date(d.getFullYear(), d.getMonth() + offset, 1); const b = new Date(d.getFullYear(), d.getMonth() + offset + 1, 0); return [iso(a), iso(b)]; }
+
+async function adminEntries(){
+  const [a, b] = monthRange(0);
+  const who_ = personSelect("k-kisi"), bas = h("input", { type: "date", id: "k-bas", value: a }), bit = h("input", { type: "date", id: "k-bit", value: b });
+  const dur = h("select", { id: "k-dur" }, h("option", { value: "hepsi" }, "Hepsi"), h("option", { value: "onayli" }, "Onaylı"), h("option", { value: "bekleyen" }, "Bekleyen"));
+  const list = h("div", { style: "display:flex;flex-direction:column;gap:10px" });
+  app.append(h("h2", {}, "Kayıtlar"), h("div", { class: "card" }, h("div", { class: "row" }, h("label", {}, "Çalışan", who_), h("label", {}, "Durum", dur)), h("div", { class: "row" }, h("label", {}, "Başlangıç", bas), h("label", {}, "Bitiş", bit))), list);
+  async function load(){
+    list.replaceChildren(h("p", { class: "muted" }, "Yükleniyor…"));
+    try {
+      const items = await rpc("y_kayitlar", { p_token: A.token, p_durum: dur.value, p_calisan: who_.value ? Number(who_.value) : null, p_bas: bas.value || null, p_bit: bit.value || null }) || [];
+      list.textContent = "";
+      list.append(h("p", { class: "muted small" }, items.length + " kayıt"));
+      items.forEach(it => list.append(entryCard(it, load, false)));
+    } catch (e) { list.replaceChildren(note(e.message)); }
+  }
+  [who_, dur, bas, bit].forEach(x => x.addEventListener("change", load));
+  load();
+}
+
+async function adminAccount(){
+  const [a, b] = monthRange(0);
+  const bas = h("input", { type: "date", id: "h-bas", value: a }), bit = h("input", { type: "date", id: "h-bit", value: b });
+  const quick = h("div", { class: "chips" },
+    h("button", { class: "chip", type: "button", onclick: () => { [bas.value, bit.value] = monthRange(0); load(); } }, "Bu ay"),
+    h("button", { class: "chip", type: "button", onclick: () => { [bas.value, bit.value] = monthRange(-1); load(); } }, "Geçen ay"),
+    h("button", { class: "chip", type: "button", onclick: () => { bas.value = ""; bit.value = ""; load(); } }, "Tüm zamanlar"));
+  const box = h("div", { style: "display:flex;flex-direction:column;gap:10px" });
+  app.append(h("h2", {}, "Hesap"), h("div", { class: "card" }, h("div", { class: "row" }, h("label", {}, "Başlangıç", bas), h("label", {}, "Bitiş", bit)), quick,
+    h("p", { class: "muted small" }, "Hak ediş = onaylı kayıtlardaki farklı günler × günlük ücret + onaylı kayıtların makine/iş ücreti. Bakiye = hak ediş − dönemde yatırılanlar.")), box);
+  async function load(){
+    box.replaceChildren(h("p", { class: "muted" }, "Hesaplanıyor…"));
+    try {
+      const rows = await rpc("y_hesap", { p_token: A.token, p_bas: bas.value || null, p_bit: bit.value || null }) || [];
+      const tb = h("tbody");
+      const T = { gun: 0, gunluk: 0, makine: 0, hak: 0, odenen: 0, bakiye: 0 };
+      for (const r of rows){
+        const gunluk = r.gun * r.gunluk_ucret, hak = gunluk + Number(r.makine), bak = hak - Number(r.odenen);
+        T.gun += r.gun; T.gunluk += gunluk; T.makine += Number(r.makine); T.hak += hak; T.odenen += Number(r.odenen); T.bakiye += bak;
+        tb.append(h("tr", {},
+          h("td", {}, r.ad + (r.aktif ? "" : " (pasif)"), r.bekleyen_gun ? h("div", { class: "muted small" }, r.bekleyen_gun + " gün onay bekliyor") : null),
+          h("td", {}, r.gun), h("td", {}, TL(r.gunluk_ucret)), h("td", {}, TL(gunluk)), h("td", {}, TL(r.makine)),
+          h("td", { style: "font-weight:600" }, TL(hak)), h("td", {}, TL(r.odenen)),
+          h("td", { class: bak >= 0 ? "pos" : "neg", style: "font-weight:700" }, TL(bak)),
+          h("td", {}, r.pazar_kalan + " / " + r.pazar_kazanilan)));
+      }
+      tb.append(h("tr", { class: "total" }, h("td", {}, "Toplam"), h("td", {}, T.gun), h("td", {}, ""), h("td", {}, TL(T.gunluk)), h("td", {}, TL(T.makine)), h("td", {}, TL(T.hak)), h("td", {}, TL(T.odenen)), h("td", { class: T.bakiye >= 0 ? "pos" : "neg" }, TL(T.bakiye)), h("td", {}, "")));
+      box.replaceChildren(h("div", { class: "tbl" }, h("table", {},
+        h("thead", {}, h("tr", {}, ["Çalışan", "Gün", "Günlük", "Günlük toplam", "Makine/iş", "Hak ediş", "Yatırılan", "Bakiye", "Pazar (kalan/toplam)"].map(x => h("th", {}, x)))), tb)),
+        h("p", { class: "muted small" }, "Bakiye artıysa çalışana ödenecek tutar, eksiyse fazla yatırılmış tutar."));
+    } catch (e) { box.replaceChildren(note(e.message)); }
+  }
+  [bas, bit].forEach(x => x.addEventListener("change", load));
+  load();
+}
+
+async function adminPayments(){
+  const f = h("form", { class: "card" });
+  const kisi = personSelect("o-kisi", false); kisi.required = true;
+  const tarih = h("input", { type: "date", id: "o-tarih", value: today(), required: true });
+  const tutar = h("input", { type: "number", id: "o-tutar", inputmode: "decimal", step: "0.01", required: true, placeholder: "0,00" });
+  const tur = h("select", { id: "o-tur" }, ["Yol parası", "Avans", "Hak ediş ödemesi", "Diğer"].map(x => h("option", { value: x }, x)));
+  const acik = h("input", { id: "o-acik", placeholder: "ör. Nevşehir işi için" });
+  const out = h("div"), save = h("button", { class: "btn primary", type: "submit" }, "Ödemeyi kaydet");
+  f.append(h("h2", {}, "Yatırılan tutar ekle"), h("div", { class: "row" }, h("label", {}, "Çalışan", kisi), h("label", {}, "Tarih", tarih)),
+    h("div", { class: "row" }, h("label", {}, "Tutar (TL)", tutar), h("label", {}, "Tür", tur)), h("label", {}, "Açıklama", acik), out, save);
+  const filt = personSelect("o-filtre");
+  const list = h("div", { style: "display:flex;flex-direction:column;gap:8px" });
+  app.append(f, h("div", { class: "split" }, h("h2", {}, "Ödemeler"), h("label", { style: "flex:0 1 220px" }, filt)), list);
+  async function load(){
+    try {
+      const items = await rpc("y_odemeler", { p_token: A.token, p_calisan: filt.value ? Number(filt.value) : null }) || [];
+      list.textContent = "";
+      if (!items.length) list.append(h("p", { class: "muted" }, "Kayıtlı ödeme yok."));
+      const total = items.reduce((s, x) => s + Number(x.tutar), 0);
+      if (items.length) list.append(h("p", { class: "muted small" }, items.length + " ödeme · toplam " + TL(total)));
+      for (const o of items){
+        const del = h("button", { class: "btn link", style: "color:var(--bad)", onclick: async () => {
+          if (del.dataset.sure !== "1"){ del.dataset.sure = "1"; del.textContent = "Silmek için tekrar dokun"; return; }
+          try { await rpc("y_odeme_sil", { p_token: A.token, p_id: o.id }); load(); } catch (e) { list.prepend(note(e.message)); }
+        } }, "Sil");
+        list.append(h("div", { class: "card" }, h("div", { class: "split" },
+          h("div", {}, h("strong", {}, o.calisan), h("div", { class: "muted small" }, tr(o.tarih) + " · " + o.tur + (o.aciklama ? " · " + o.aciklama : ""))),
+          h("div", { style: "display:flex;gap:12px;align-items:center" }, h("strong", { style: "font-variant-numeric:tabular-nums" }, TL(o.tutar)), del))));
+      }
+    } catch (e) { list.replaceChildren(note(e.message)); }
+  }
+  f.addEventListener("submit", async ev => {
+    ev.preventDefault(); out.textContent = ""; busy(save, true, "Kaydediliyor…");
+    try {
+      await rpc("y_odeme_ekle", { p_token: A.token, p_calisan: Number(kisi.value), p_tarih: tarih.value, p_tutar: Number(tutar.value), p_tur: tur.value, p_aciklama: acik.value });
+      out.append(note("Kaydedildi.", "ok")); tutar.value = ""; acik.value = ""; load();
+    } catch (e) { out.append(note(e.message)); }
+    busy(save, false, "Ödemeyi kaydet");
+  });
+  filt.addEventListener("change", load);
+  load();
+}
+
+async function adminLeaves(){
+  const list = h("div", { style: "display:flex;flex-direction:column;gap:8px" }, h("p", { class: "muted" }, "Yükleniyor…"));
+  app.append(h("h2", {}, "Girilen izinler"), list);
+  try {
+    const items = await rpc("y_izinler", { p_token: A.token }) || [];
+    list.textContent = "";
+    if (!items.length) list.append(h("p", { class: "muted" }, "Henüz izin girilmemiş."));
+    for (const i of items){
+      const d = parse(i.tarih);
+      list.append(h("div", { class: "card" }, h("div", { class: "split" },
+        h("div", {}, h("strong", {}, i.calisan), h("div", { class: "muted small" }, tr(i.tarih) + " " + GUNLER[d.getDay()] + (i.aciklama ? " · " + i.aciklama : ""))),
+        h("span", { class: "tag " + (i.pazar_izni ? "ok" : "used") }, i.pazar_izni ? "Pazar izni" : "İzin"))));
+    }
+  } catch (e) { list.replaceChildren(note(e.message)); }
+}
+
+async function adminPeople(){
+  const list = h("div", { style: "display:flex;flex-direction:column;gap:10px" });
+  app.append(h("h2", {}, "Çalışanlar"), h("p", { class: "muted small" }, "Günlük ücret yalnızca burada ve Hesap sayfasında görünür. Şifre kutusunu boş bırakırsan mevcut şifre değişmez."), list);
+  function row(p){
+    const ad = h("input", { value: p ? p.ad : "", placeholder: "Ad Soyad" });
+    const ucret = h("input", { type: "number", inputmode: "decimal", step: "0.01", value: p ? p.gunluk_ucret : "", placeholder: "Günlük ücret (TL)" });
+    const pin = h("input", { type: "text", inputmode: "numeric", placeholder: p ? "Yeni şifre (boş = değişmez)" : "Şifre (boş = 2945)" });
+    const aktif = h("input", { type: "checkbox", checked: p ? p.aktif : true, style: "width:auto" });
+    const out = h("div");
+    const save = h("button", { class: "btn primary", onclick: async () => {
+      try {
+        await rpc("y_calisan_kaydet", { p_token: A.token, p_id: p ? p.id : null, p_ad: ad.value, p_gunluk: ucret.value === "" ? null : Number(ucret.value), p_aktif: aktif.checked, p_pin: pin.value || null });
+        out.replaceChildren(note("Kaydedildi.", "ok")); pin.value = "";
+        if (!p) adminBoot();
+      } catch (e) { out.replaceChildren(note(e.message)); }
+    } }, p ? "Kaydet" : "Çalışan ekle");
+    return h("div", { class: "card" }, h("div", { class: "row" }, h("label", {}, "Ad", ad), h("label", {}, "Günlük ücret (TL)", ucret)),
+      h("div", { class: "row" }, h("label", {}, "Şifre", pin), h("label", { style: "flex-direction:row;align-items:center;gap:8px;color:var(--fg)" }, aktif, "Aktif (giriş yapabilir)")), out, save);
+  }
+  A.people.forEach(p => list.append(row(p)));
+  list.append(h("h2", {}, "Yeni çalışan"), row(null));
+}
+
+/* ---------- başlat ---------- */
+if (!window.SB_URL || !window.SB_KEY){
+  app.append(h("div", { class: "card login" }, h("h2", {}, "Kurulum bekleniyor"),
+    h("p", { class: "muted" }, "Sunucu bağlantı bilgileri (config.js) henüz girilmedi.")));
+} else if (ADMIN) {
+  adminBoot();
+} else {
+  staffBoot();
+}
+
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>
