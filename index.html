@@ -130,6 +130,8 @@ div.check input[type=checkbox]{width:18px!important;height:18px}
 .lrow .la small{color:var(--muted);font-size:11.5px;white-space:nowrap}
 .lrow.in .la b{color:var(--ok)}.lrow.out .la b{color:var(--bad)}
 @media (max-width:420px){.lrow{grid-template-columns:1fr auto}.lrow .ld{grid-column:1 / -1;min-width:0}}
+.switch-role{display:flex;justify-content:center;margin-top:18px}
+.switch-role .btn{font-size:14px;padding:10px 18px}
 .cal-legend{display:flex;flex-wrap:wrap;gap:6px 12px;padding:8px 12px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
 .cal-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
@@ -154,6 +156,7 @@ div.check input[type=checkbox]{width:18px!important;height:18px}
 const $ = (s, el = document) => el.querySelector(s);
 const app = $("#app");
 const ADMIN = location.hash === "#yonetici";
+function goRole(admin){ history.replaceState(null, "", location.pathname + location.search + (admin ? "#yonetici" : "")); location.reload(); }
 const LS = { get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }, set(k,v){ try{ v == null ? localStorage.removeItem(k) : localStorage.setItem(k,v); }catch(e){} } };
 const IL = ["Adana","Adıyaman","Afyonkarahisar","Ağrı","Aksaray","Amasya","Ankara","Antalya","Ardahan","Artvin","Aydın","Balıkesir","Bartın","Batman","Bayburt","Bilecik","Bingöl","Bitlis","Bolu","Burdur","Bursa","Çanakkale","Çankırı","Çorum","Denizli","Diyarbakır","Düzce","Edirne","Elazığ","Erzincan","Erzurum","Eskişehir","Gaziantep","Giresun","Gümüşhane","Hakkari","Hatay","Iğdır","Isparta","İstanbul","İzmir","Kahramanmaraş","Karabük","Karaman","Kars","Kastamonu","Kayseri","Kırıkkale","Kırklareli","Kırşehir","Kilis","Kocaeli","Konya","Kütahya","Malatya","Manisa","Mardin","Mersin","Muğla","Muş","Nevşehir","Niğde","Ordu","Osmaniye","Rize","Sakarya","Samsun","Siirt","Sinop","Sivas","Şanlıurfa","Şırnak","Tekirdağ","Tokat","Trabzon","Tunceli","Uşak","Van","Yalova","Yozgat","Zonguldak"];
 const AYLAR = ["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
@@ -403,7 +406,7 @@ async function staffLogin(msg){
   card.append(h("h2", {}, "Giriş"), h("p", { class: "muted small" }, "Şehir dışı çalışmalarını, pazar mesailerini ve izinlerini buradan gir."),
     h("label", {}, "Adın", sel), h("label", {}, "Şifre", pin), out, btn);
   if (msg) out.append(note(msg, "info"));
-  app.append(card);
+  app.append(card, h("div", { class: "switch-role" }, h("button", { type: "button", class: "btn", onclick: () => goRole(true) }, "🔒 Yönetici girişi")));
   try {
     const names = await rpc("calisan_adlari");
     S.names = names || [];
@@ -648,7 +651,7 @@ async function adminLogin(){
   f.append(h("h2", {}, first ? "Yönetici şifresini belirle" : "Yönetici girişi"),
     first ? h("p", { class: "muted small" }, "İlk kurulum. En az 8 karakterli, çalışanların bilmediği bir şifre seç. Bu şifre bir daha bu ekrandan değiştirilemez.") : null,
     h("label", {}, "Şifre", pw), pw2 ? h("label", {}, "Şifre (tekrar)", pw2) : null, out, btn);
-  app.append(f);
+  app.append(f, h("div", { class: "switch-role" }, h("button", { type: "button", class: "btn link", onclick: () => goRole(false) }, "‹ Personel girişine dön")));
   f.addEventListener("submit", async ev => {
     ev.preventDefault(); out.textContent = "";
     if (first && pw.value !== pw2.value){ out.append(note("Şifreler aynı değil.")); return; }
