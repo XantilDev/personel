@@ -477,6 +477,108 @@ begin
   );
 end $$;
 
+-- ---------- Araç konumları (Koridor Ortalama uygulamasından) ----------
+-- Her çalışanın yalnızca SON konumu tutulur. Uygulama, çalışan bağlanıp paylaşımı açtıysa ve
+-- uygulama açık/sürüşteyken gönderir. Çalışanlar birbirinin konumunu göremez; yalnız yönetici.
+create table if not exists konum (
+  calisan_id  bigint primary key references calisan(id) on delete cascade,
+  lat         double precision not null,
+  lon         double precision not null,
+  hiz         int,
+  durum       text not null default '',
+  koridor     text,
+  ortalama    int,
+  hiz_limiti  int,
+  hedef       text,
+  arac        text,
+  plaka       text,
+  km          numeric(10,1),
+  dogruluk    int,
+  zaman       timestamptz not null default now()
+);
+alter table konum enable row level security;
+revoke all on konum from anon, authenticated;
+
+create or replace function konum_gonder(p_token text, p_lat double precision, p_lon double precision, p_hiz int, p_durum text,
+  p_koridor text, p_ortalama int, p_limit int, p_hedef text, p_arac text, p_plaka text, p_km numeric, p_dogruluk int) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare cid bigint := _calisan(p_token);
+begin
+  if p_lat is null or p_lon is null or p_lat not between 35 and 43 or p_lon not between 25 and 45.5 then
+    raise exception 'Geçersiz konum';
+  end if;
+  insert into konum (calisan_id, lat, lon, hiz, durum, koridor, ortalama, hiz_limiti, hedef, arac, plaka, km, dogruluk, zaman)
+  values (cid, p_lat, p_lon, p_hiz, left(coalesce(p_durum, ''), 20), left(p_koridor, 160), p_ortalama, p_limit,
+          left(p_hedef, 160), left(p_arac, 60), left(p_plaka, 20), p_km, p_dogruluk, now())
+  on conflict (calisan_id) do update set lat = excluded.lat, lon = excluded.lon, hiz = excluded.hiz, durum = excluded.durum,
+    koridor = excluded.koridor, ortalama = excluded.ortalama, hiz_limiti = excluded.hiz_limiti, hedef = excluded.hedef,
+    arac = excluded.arac, plaka = excluded.plaka, km = excluded.km, dogruluk = excluded.dogruluk, zaman = now();
+end $$;
+
+-- İş yolculuğu bitince / paylaşım kapanınca: son İŞ konumu yerinde kalır, durumu "kapali" olur
+-- (zaman damgası, konumun en son ne zaman alındığını gösterir). Şahsi yolculukta hiç konum gelmez.
+create or replace function konum_kapat(p_token text) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+begin
+  update konum set durum = 'kapali', hiz = null, koridor = null, ortalama = null where calisan_id = _calisan(p_token);
+end $$;
+
+create or replace function y_konumlar(p_token text) returns json
+language plpgsql security definer set search_path = public, extensions as $$
+begin
+  perform _yonetici(p_token);
+  return coalesce((select json_agg(json_build_object(
+      'calisan_id', c.id, 'ad', c.ad, 'lat', k.lat, 'lon', k.lon, 'hiz', k.hiz, 'durum', k.durum, 'koridor', k.koridor,
+      'ortalama', k.ortalama, 'limit', k.hiz_limiti, 'hedef', k.hedef, 'arac', k.arac, 'plaka', k.plaka, 'km', k.km,
+      'dogruluk', k.dogruluk, 'zaman', k.zaman) order by k.zaman desc nulls last, c.ad)
+    from calisan c left join konum k on k.calisan_id = c.id where c.aktif), '[]'::json);
+end $$;
+
+-- ---------- İş yolculukları (Koridor Ortalama'dan; şahsi yolculuklar hiç gönderilmez) ----------
+create table if not exists yolculuk (
+  id          bigint generated always as identity primary key,
+  calisan_id  bigint not null references calisan(id) on delete cascade,
+  istemci_id  text not null,
+  baslangic   timestamptz not null,
+  bitis       timestamptz not null,
+  km          numeric(10,1) not null,
+  sure_dk     int not null default 0,
+  arac        text,
+  plaka       text,
+  hedef       text,
+  koridor     int not null default 0,
+  asim        int not null default 0,
+  olusturma   timestamptz not null default now(),
+  unique (calisan_id, istemci_id)
+);
+alter table yolculuk enable row level security;
+revoke all on yolculuk from anon, authenticated;
+
+create or replace function yolculuk_ekle(p_token text, p_istemci text, p_baslangic timestamptz, p_bitis timestamptz, p_km numeric,
+  p_sure_dk int, p_arac text, p_plaka text, p_hedef text, p_koridor int, p_asim int) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare cid bigint := _calisan(p_token);
+begin
+  if p_km is null or p_km < 0 or p_km > 3000 then raise exception 'Geçersiz mesafe'; end if;
+  insert into yolculuk (calisan_id, istemci_id, baslangic, bitis, km, sure_dk, arac, plaka, hedef, koridor, asim)
+  values (cid, left(p_istemci, 60), p_baslangic, p_bitis, p_km, coalesce(p_sure_dk, 0), left(p_arac, 60), left(p_plaka, 20),
+          left(p_hedef, 160), coalesce(p_koridor, 0), coalesce(p_asim, 0))
+  on conflict (calisan_id, istemci_id) do update set bitis = excluded.bitis, km = excluded.km, sure_dk = excluded.sure_dk,
+    arac = excluded.arac, plaka = excluded.plaka, hedef = excluded.hedef, koridor = excluded.koridor, asim = excluded.asim;
+end $$;
+
+create or replace function y_yolculuklar(p_token text, p_bas date, p_bit date) returns json
+language plpgsql security definer set search_path = public, extensions as $$
+begin
+  perform _yonetici(p_token);
+  return coalesce((select json_agg(json_build_object(
+      'id', y.id, 'calisan_id', y.calisan_id, 'calisan', c.ad, 'baslangic', y.baslangic, 'bitis', y.bitis, 'km', y.km,
+      'sure_dk', y.sure_dk, 'arac', y.arac, 'plaka', y.plaka, 'hedef', y.hedef, 'koridor', y.koridor, 'asim', y.asim)
+      order by y.baslangic desc)
+    from yolculuk y join calisan c on c.id = y.calisan_id
+    where (p_bas is null or y.baslangic::date >= p_bas) and (p_bit is null or y.baslangic::date <= p_bit)), '[]'::json);
+end $$;
+
 -- ---------- Yetkiler ----------
 revoke execute on function _kilitli(text), _deneme_hata(text), _oturum(text), _calisan(text), _yonetici(text), _pazarlar(bigint)
   from public, anon, authenticated;
@@ -488,5 +590,8 @@ grant execute on function
   y_kayitlar(text, text, bigint, date, date), y_onayla(text, bigint, boolean), y_kayit_sil(text, bigint),
   y_makine_ucreti(text, bigint, numeric), y_makine_isi(text, bigint, boolean), y_gec_saat(text, bigint, time), y_calisanlar(text), y_calisan_kaydet(text, bigint, text, numeric, boolean, text),
   y_odemeler(text, bigint), y_odeme_ekle(text, bigint, date, numeric, text, text), y_odeme_sil(text, bigint),
-  y_izinler(text), y_hesap(text, date, date), y_pazar_ozet(text), y_pazar_durumu(text, bigint)
+  y_izinler(text), y_hesap(text, date, date), y_pazar_ozet(text), y_pazar_durumu(text, bigint),
+  konum_gonder(text, double precision, double precision, int, text, text, int, int, text, text, text, numeric, int),
+  konum_kapat(text), y_konumlar(text),
+  yolculuk_ekle(text, text, timestamptz, timestamptz, numeric, int, text, text, text, int, int), y_yolculuklar(text, date, date)
 to anon, authenticated;
