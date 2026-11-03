@@ -153,7 +153,7 @@ div.check input[type=checkbox]{width:18px!important;height:18px}
 </header>
 <main id="app"></main>
 
-<script src="config.js?v=11"></script>
+<script src="config.js?v=12"></script>
 <script>
 "use strict";
 const $ = (s, el = document) => el.querySelector(s);
@@ -998,9 +998,17 @@ async function pazarProfil(box, who, back){
 /* ---------- Harita katmanı: Google (config.js'te GMAPS_KEY varsa) ya da OpenStreetMap (Leaflet) ---------- */
 function loadScript(src){ return new Promise((ok, bad) => { const js = document.createElement("script"); js.src = src; js.onload = ok; js.onerror = () => bad(new Error("Harita yüklenemedi")); document.head.append(js); }); }
 let mapLib = null;
+// Google anahtarı bu tarayıcıda reddedilirse (ör. Firefox adres bilgisini göndermiyor) bir gün OpenStreetMap kullan.
+window.gm_authFailure = function(){
+  try { localStorage.setItem("gm_fail", String(Date.now())); } catch (e) {}
+  if (!sessionStorage.getItem("gm_reloaded")){ try { sessionStorage.setItem("gm_reloaded", "1"); } catch (e) {} location.reload(); }
+};
+function gmBlocked(){
+  try { return Date.now() - Number(localStorage.getItem("gm_fail") || 0) < 24 * 3600 * 1000; } catch (e) { return false; }
+}
 async function mapReady(){
   if (mapLib) return mapLib;
-  if (window.GMAPS_KEY){
+  if (window.GMAPS_KEY && !gmBlocked()){
     try {
       await new Promise((ok, bad) => {
         window.__gmReady = ok;
