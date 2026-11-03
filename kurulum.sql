@@ -551,20 +551,40 @@ create table if not exists yolculuk (
   olusturma   timestamptz not null default now(),
   unique (calisan_id, istemci_id)
 );
+alter table yolculuk add column if not exists iz text;            -- rota çizgisi (Google kodlu polyline)
+alter table yolculuk add column if not exists koridorlar jsonb;   -- [{ad, ort, limit, sure, bekleme, km}]
+alter table yolculuk add column if not exists ortalama int;
+alter table yolculuk add column if not exists hareket_ort int;
 alter table yolculuk enable row level security;
 revoke all on yolculuk from anon, authenticated;
 
+-- Eski imza (11 parametre) kaldırılır; yeni parametrelerin varsayılanı olduğu için eski uygulama sürümleri de çalışır.
+drop function if exists yolculuk_ekle(text, text, timestamptz, timestamptz, numeric, int, text, text, text, int, int);
 create or replace function yolculuk_ekle(p_token text, p_istemci text, p_baslangic timestamptz, p_bitis timestamptz, p_km numeric,
-  p_sure_dk int, p_arac text, p_plaka text, p_hedef text, p_koridor int, p_asim int) returns void
+  p_sure_dk int, p_arac text, p_plaka text, p_hedef text, p_koridor int, p_asim int,
+  p_iz text default null, p_koridorlar jsonb default null, p_ortalama int default null, p_hareket_ort int default null) returns void
 language plpgsql security definer set search_path = public, extensions as $$
 declare cid bigint := _calisan(p_token);
 begin
   if p_km is null or p_km < 0 or p_km > 3000 then raise exception 'Geçersiz mesafe'; end if;
-  insert into yolculuk (calisan_id, istemci_id, baslangic, bitis, km, sure_dk, arac, plaka, hedef, koridor, asim)
+  insert into yolculuk (calisan_id, istemci_id, baslangic, bitis, km, sure_dk, arac, plaka, hedef, koridor, asim, iz, koridorlar, ortalama, hareket_ort)
   values (cid, left(p_istemci, 60), p_baslangic, p_bitis, p_km, coalesce(p_sure_dk, 0), left(p_arac, 60), left(p_plaka, 20),
-          left(p_hedef, 160), coalesce(p_koridor, 0), coalesce(p_asim, 0))
+          left(p_hedef, 160), coalesce(p_koridor, 0), coalesce(p_asim, 0), left(p_iz, 60000), p_koridorlar, p_ortalama, p_hareket_ort)
   on conflict (calisan_id, istemci_id) do update set bitis = excluded.bitis, km = excluded.km, sure_dk = excluded.sure_dk,
-    arac = excluded.arac, plaka = excluded.plaka, hedef = excluded.hedef, koridor = excluded.koridor, asim = excluded.asim;
+    arac = excluded.arac, plaka = excluded.plaka, hedef = excluded.hedef, koridor = excluded.koridor, asim = excluded.asim,
+    iz = coalesce(excluded.iz, yolculuk.iz), koridorlar = coalesce(excluded.koridorlar, yolculuk.koridorlar),
+    ortalama = coalesce(excluded.ortalama, yolculuk.ortalama), hareket_ort = coalesce(excluded.hareket_ort, yolculuk.hareket_ort);
+end $$;
+
+-- Tek yolculuğun ayrıntısı (rota çizgisi ve koridorlar) — listede ağır alanlar gönderilmez.
+create or replace function y_yolculuk_detay(p_token text, p_id bigint) returns json
+language plpgsql security definer set search_path = public, extensions as $$
+begin
+  perform _yonetici(p_token);
+  return (select json_build_object('id', y.id, 'calisan', c.ad, 'baslangic', y.baslangic, 'bitis', y.bitis, 'km', y.km, 'sure_dk', y.sure_dk,
+      'arac', y.arac, 'plaka', y.plaka, 'hedef', y.hedef, 'koridor', y.koridor, 'asim', y.asim, 'iz', y.iz, 'koridorlar', y.koridorlar,
+      'ortalama', y.ortalama, 'hareket_ort', y.hareket_ort)
+    from yolculuk y join calisan c on c.id = y.calisan_id where y.id = p_id);
 end $$;
 
 create or replace function y_yolculuklar(p_token text, p_bas date, p_bit date) returns json
@@ -573,7 +593,8 @@ begin
   perform _yonetici(p_token);
   return coalesce((select json_agg(json_build_object(
       'id', y.id, 'calisan_id', y.calisan_id, 'calisan', c.ad, 'baslangic', y.baslangic, 'bitis', y.bitis, 'km', y.km,
-      'sure_dk', y.sure_dk, 'arac', y.arac, 'plaka', y.plaka, 'hedef', y.hedef, 'koridor', y.koridor, 'asim', y.asim)
+      'sure_dk', y.sure_dk, 'arac', y.arac, 'plaka', y.plaka, 'hedef', y.hedef, 'koridor', y.koridor, 'asim', y.asim,
+      'ortalama', y.ortalama, 'iz_var', y.iz is not null)
       order by y.baslangic desc)
     from yolculuk y join calisan c on c.id = y.calisan_id
     where (p_bas is null or y.baslangic::date >= p_bas) and (p_bit is null or y.baslangic::date <= p_bit)), '[]'::json);
@@ -593,5 +614,6 @@ grant execute on function
   y_izinler(text), y_hesap(text, date, date), y_pazar_ozet(text), y_pazar_durumu(text, bigint),
   konum_gonder(text, double precision, double precision, int, text, text, int, int, text, text, text, numeric, int),
   konum_kapat(text), y_konumlar(text),
-  yolculuk_ekle(text, text, timestamptz, timestamptz, numeric, int, text, text, text, int, int), y_yolculuklar(text, date, date)
+  yolculuk_ekle(text, text, timestamptz, timestamptz, numeric, int, text, text, text, int, int, text, jsonb, int, int),
+  y_yolculuklar(text, date, date), y_yolculuk_detay(text, bigint)
 to anon, authenticated;
