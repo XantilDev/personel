@@ -153,7 +153,7 @@ div.check input[type=checkbox]{width:18px!important;height:18px}
 </header>
 <main id="app"></main>
 
-<script src="config.js"></script>
+<script src="config.js?v=11"></script>
 <script>
 "use strict";
 const $ = (s, el = document) => el.querySelector(s);
@@ -1096,11 +1096,12 @@ async function adminVehicles(){
   app.append(head, h("p", { class: "muted small" }, "Koridor Ortalama uygulamasında şirket aracıyla “İş” yolculuğu yapan çalışanların konumu. Yolculuk sürerken canlı görünür; bitince son iş konumu ve saati haritada kalır. Şahsi araç ve şahsi yolculuklardan hiçbir bilgi gelmez. Sayfa 30 sn'de bir yenilenir."), mapEl, list);
   let map = null;
   try { map = await makeMap(mapEl); } catch (e) { mapEl.replaceWith(note(e.message)); }
+  $("#v-upd") && ($("#v-upd").dataset.lib = map ? (map.lib === "google" ? "Google haritası" : "OpenStreetMap") : "");
   let fitted = false;
   async function load(){
     try {
       const rows = await rpc("y_konumlar", { p_token: A.token }) || [];
-      $("#v-upd") && ($("#v-upd").textContent = "Güncellendi " + new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+      $("#v-upd") && ($("#v-upd").textContent = ($("#v-upd").dataset.lib ? $("#v-upd").dataset.lib + " · " : "") + "Güncellendi " + new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
       list.textContent = "";
       const pts = [];
       for (const v of rows){
