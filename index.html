@@ -140,6 +140,40 @@ div.check input[type=checkbox]{width:18px!important;height:18px}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
 .seg button{border:0;background:var(--panel);color:var(--fg);font:500 14px var(--sans);padding:8px 14px;cursor:pointer}
 .seg button[aria-pressed=true]{background:var(--brand);color:#fff}
+main.wide{max-width:1240px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.kpi{border-radius:16px;padding:14px 16px;color:#fff;display:flex;flex-direction:column;gap:2px;min-width:0}
+.kpi span{font-size:12px;font-weight:700;letter-spacing:.08em;opacity:.88}
+.kpi b{font:800 30px/1.15 var(--sans);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.kpi small{font-size:13px;font-weight:600;opacity:.92}
+.k-blue{background:#2563eb}.k-purple{background:#7c3aed}.k-teal{background:#0e7490}.k-red{background:#dc2626}.k-green{background:#15803d}.k-orange{background:#c2410c}
+.tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
+.tcard,.pcard{background:var(--panel);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 2px 10px rgba(15,23,42,.07);display:flex;flex-direction:column;text-align:left;font:inherit;color:inherit;padding:0;min-width:0}
+.tcard{cursor:pointer}.tcard:hover,.pcard:hover{border-color:var(--accent)}
+.pcard{padding:14px;gap:12px}.pcard.off{opacity:.6}
+.tthumb{position:relative;height:110px}.tthumb svg{display:block;width:100%;height:100%}
+.tbadge{position:absolute;top:10px;left:10px;background:#2563eb;color:#fff;font-size:12px;font-weight:800;letter-spacing:.06em;padding:4px 10px;border-radius:99px}
+.tdate{position:absolute;top:10px;right:10px;background:rgba(15,23,42,.8);color:#fff;font-size:12px;font-weight:700;padding:4px 9px;border-radius:99px}
+.tbody{padding:12px 14px 14px;display:flex;flex-direction:column;gap:10px}
+.ttitle{font-size:18px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tsub{font-size:13px;color:var(--muted);font-weight:600}
+.tstats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.tstats div{border-radius:10px;padding:8px 4px;text-align:center}
+.tstats b{display:block;font:800 19px var(--sans);font-variant-numeric:tabular-nums}.tstats span{font-size:11px;font-weight:700}
+.s1{background:#eff6ff;color:#1d4ed8}.s2{background:#f5f3ff;color:#6d28d9}.s3{background:#ecfeff;color:#0e7490}
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.pill{font-size:13px;font-weight:700;padding:5px 10px;border-radius:99px}
+.p-eds{background:#ffedd5;color:#9a3412}.p-bad{background:#dc2626;color:#fff}.p-ok{background:#dcfce7;color:#166534}.p-place{background:#e0e7ff;color:#3730a3}
+.avatar{flex:none;width:46px;height:46px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:17px}
+.alertbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#fff7ed;border:2px solid #fdba74;color:#7c2d12;border-radius:14px;padding:10px 14px}
+.alertbar.red{background:#fef2f2;border-color:#fca5a5;color:#991b1b}
+.abicon{font-size:22px}
+.mband{border-radius:10px;padding:8px 10px;font-weight:700;font-size:14px}
+.mband.ok{background:#dcfce7;color:#166534}.mband.orange{background:#ffedd5;color:#9a3412}.mband.red{background:#dc2626;color:#fff}.mband.none{background:var(--bg);color:var(--muted)}
+.krow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:var(--bg);border-left:5px solid #16a34a}
+.krow b{font:800 24px var(--sans);color:#15803d}.krow.over{border-left-color:#dc2626}.krow.over b{color:#dc2626}
+dialog.dlg{width:min(860px,94vw);max-height:90vh;border:0;border-radius:18px;padding:18px;background:var(--panel);color:var(--fg);box-shadow:0 20px 60px rgba(0,0,0,.35)}
+dialog.dlg::backdrop{background:rgba(15,23,42,.55)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -153,7 +187,7 @@ div.check input[type=checkbox]{width:18px!important;height:18px}
 </header>
 <main id="app"></main>
 
-<script src="config.js?v=12"></script>
+<script src="config.js?v=13"></script>
 <script>
 "use strict";
 const $ = (s, el = document) => el.querySelector(s);
@@ -635,11 +669,15 @@ async function adminBoot(){
   document.title = "AYSOFT Personel · Yönetici";
   if (!A.token){ tabs([], null); who(null); return adminLogin(); }
   who("Yönetici", () => { rpc("cikis", { p_token: A.token }).catch(() => {}); logout(); });
-  tabs([["bekleyen", "Onay bekleyen"], ["kayitlar", "Kayıtlar"], ["hesap", "Hesap"], ["odeme", "Ödemeler"], ["izinler", "Pazar / İzin"], ["araclar", "Araçlar"], ["calisan", "Çalışanlar"]], A.tab, k => { A.tab = k; A.leaveOf = null; A.ledgerOf = null; if (A.mapTimer){ clearInterval(A.mapTimer); A.mapTimer = null; } adminBoot(); });
+  tabs([["bekleyen", "Onay bekleyen"], ["kayitlar", "Kayıtlar"], ["hesap", "Hesap"], ["odeme", "Ödemeler"], ["izinler", "Pazar / İzin"], ["yolculuk", "Yolculuklar"], ["araclar", "Araçlar"], ["calisan", "Çalışanlar"]], A.tab, k => { A.tab = k; A.leaveOf = null; A.ledgerOf = null; if (A.mapTimer){ clearInterval(A.mapTimer); A.mapTimer = null; } adminBoot(); });
   app.textContent = "";
+  app.classList.toggle("wide", A.tab === "yolculuk" || A.tab === "araclar");
   try { A.people = await rpc("y_calisanlar", { p_token: A.token }) || []; }
   catch (e) { app.append(note(e.message)); return; }
-  ({ bekleyen: adminPending, kayitlar: adminEntries, hesap: adminAccount, odeme: adminPayments, izinler: adminLeaves, araclar: adminVehicles, calisan: adminPeople })[A.tab]();
+  // Muayene uyarısı her sekmenin üstünde (araç listesi yoksa / SQL güncellenmemişse sessizce geçer)
+  try { A.cars = (await rpc("y_araclar", { p_token: A.token }) || {}).araclar || []; } catch (e) { A.cars = []; }
+  const mb = muayeneBar(A.cars); if (mb) app.append(mb);
+  ({ bekleyen: adminPending, kayitlar: adminEntries, hesap: adminAccount, odeme: adminPayments, izinler: adminLeaves, yolculuk: adminTrips, araclar: adminVehicles, calisan: adminPeople })[A.tab]();
 }
 
 async function adminLogin(){
@@ -1097,11 +1135,326 @@ function vehState(v){
   return { k: "hazir", t: "Uygulama açık, sürüş yok", c: "#1a73e8" };
 }
 const esc = x => String(x ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+/* =====================================================================
+   ARAÇLAR (şirket araçları, muayene, canlı konum) ve YOLCULUKLAR (kartlar, rapor, karne, müşteriler)
+   ===================================================================== */
+const TINTS = ["#c7ddf7", "#d7e9d2", "#f3e3c3", "#e3daf5", "#c9eef2", "#fbe0d3"];
+const fmtKm = n => Number(n || 0).toLocaleString("tr-TR", { maximumFractionDigits: n >= 100 ? 0 : 1 });
+const fmtDk = m => { m = Math.round(m || 0); return Math.floor(m / 60) + ":" + pad(m % 60); };
+const hmOf = t => new Date(t).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+const dayOf = t => new Date(t).toLocaleDateString("tr-TR", { day: "numeric", month: "short" });
+function initials(ad){ return (ad || "?").split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toLocaleUpperCase("tr")).join(""); }
+function personColor(ad){ let x = 0; for (const ch of ad || "?") x = (x * 31 + ch.codePointAt(0)) >>> 0; return ["#2563eb", "#7c3aed", "#0e7490", "#ea580c", "#16a34a", "#db2777", "#4f46e5", "#b45309"][x % 8]; }
+function muayeneText(g){ if (g == null) return "Muayene tarihi girilmedi"; if (g < 0) return "Muayene " + (-g) + " gün geçti!"; if (g === 0) return "Muayene bugün!"; return "Muayeneye " + g + " gün"; }
+function muayeneKind(g){ return g == null ? "none" : g <= 7 ? "red" : g <= 30 ? "orange" : "ok"; }
+
+/** Kartın üstündeki küçük rota çizimi (uygulamadan gelen iz). */
+function thumb(iz, seed){
+  const W = 320, H = 110, P = 16;
+  let body = "";
+  if (iz){
+    let pts = decodePath(iz);
+    const step = Math.max(1, Math.floor(pts.length / 250)); pts = pts.filter((_, i) => i % step === 0 || i === pts.length - 1);
+    if (pts.length > 1){
+      const la = pts.map(p => p[0]), lo = pts.map(p => p[1]);
+      const k = Math.cos((Math.min(...la) + Math.max(...la)) / 2 * Math.PI / 180);
+      const w = Math.max((Math.max(...lo) - Math.min(...lo)) * k, 1e-6), hh = Math.max(Math.max(...la) - Math.min(...la), 1e-6);
+      const sc = Math.min((W - 2 * P) / w, (H - 2 * P) / hh), ox = (W - w * sc) / 2, oy = (H - hh * sc) / 2;
+      const minLo = Math.min(...lo), maxLa = Math.max(...la);
+      const XY = p => [(ox + (p[1] - minLo) * k * sc).toFixed(1), (oy + (maxLa - p[0]) * sc).toFixed(1)];
+      const d = pts.map((p, i) => (i ? "L" : "M") + XY(p).join(" ")).join("");
+      const a = XY(pts[0]), b = XY(pts[pts.length - 1]);
+      body = `<path d="${d}" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>` +
+        `<path d="${d}" fill="none" stroke="#2563eb" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>` +
+        `<circle cx="${a[0]}" cy="${a[1]}" r="7" fill="#16a34a" stroke="#fff" stroke-width="3"/><circle cx="${b[0]}" cy="${b[1]}" r="7" fill="#0f172a" stroke="#fff" stroke-width="3"/>`;
+    }
+  }
+  if (!body) body = `<text x="${W / 2}" y="${H / 2 + 5}" text-anchor="middle" font-size="13" font-weight="600" fill="#475569">Rota çizgisi yok</text>`;
+  const div = h("div", { class: "tthumb", style: "background-color:" + TINTS[seed % TINTS.length] });
+  div.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">${body}</svg>`;
+  return div;
+}
+
+function tripCard(r, onOpen){
+  const card = h("button", { type: "button", class: "tcard", onclick: () => onOpen(r) });
+  const th = thumb(r.iz, r.id);
+  th.append(h("span", { class: "tbadge" }, "İŞ"), h("span", { class: "tdate" }, dayOf(r.baslangic) + " · " + hmOf(r.baslangic)));
+  const title = r.yer ? "📍 " + r.yer : (r.hedef || "Serbest sürüş");
+  card.append(th, h("div", { class: "tbody" },
+    h("div", { class: "ttitle" }, title),
+    h("div", { class: "tsub" }, [r.calisan, r.plaka, hmOf(r.baslangic) + "–" + hmOf(r.bitis)].filter(Boolean).join(" · ")),
+    h("div", { class: "tstats" },
+      h("div", { class: "s1" }, h("b", {}, fmtKm(r.km)), h("span", {}, "KM")),
+      h("div", { class: "s2" }, h("b", {}, fmtDk(r.sure_dk)), h("span", {}, "SÜRE")),
+      h("div", { class: "s3" }, h("b", {}, r.ortalama != null ? r.ortalama : "—"), h("span", {}, "ORT km/s"))),
+    h("div", { class: "pills" },
+      h("span", { class: "pill p-eds" }, r.koridor ? r.koridor + " EDS geçti" : "EDS yok"),
+      r.asim ? h("span", { class: "pill p-bad" }, r.asim + " ihlal") : (r.koridor ? h("span", { class: "pill p-ok" }, "İhlal yok") : null))));
+  return card;
+}
+
+/** Yolculuk ayrıntısı: açılır pencerede rota haritası ve koridor tablosu. */
+async function tripDialog(r){
+  const dlg = h("dialog", { class: "dlg" });
+  const body = h("div", { style: "display:flex;flex-direction:column;gap:10px" });
+  dlg.append(h("div", { class: "split" }, h("h2", { style: "margin:0" }, (r.yer || r.hedef || "Yolculuk")),
+    h("button", { class: "btn", type: "button", onclick: () => dlg.close() }, "Kapat")),
+    h("p", { class: "muted small", style: "margin:0" }, [r.calisan, r.plaka, new Date(r.baslangic).toLocaleString("tr-TR", { dateStyle: "full", timeStyle: "short" })].filter(Boolean).join(" · ")), body);
+  dlg.addEventListener("close", () => dlg.remove());
+  document.body.append(dlg); dlg.showModal();
+  body.append(h("p", { class: "muted" }, "Yükleniyor…"));
+  try {
+    const d = await rpc("y_yolculuk_detay", { p_token: A.token, p_id: r.id });
+    body.textContent = "";
+    body.append(h("div", { class: "kpis" },
+      h("div", { class: "kpi k-blue" }, h("span", {}, "MESAFE"), h("b", {}, fmtKm(d.km) + " km")),
+      h("div", { class: "kpi k-purple" }, h("span", {}, "SÜRE"), h("b", {}, fmtDk(d.sure_dk))),
+      h("div", { class: "kpi k-teal" }, h("span", {}, "ORTALAMA"), h("b", {}, (d.ortalama ?? "—") + " km/s")),
+      h("div", { class: "kpi " + (d.asim ? "k-red" : "k-green") }, h("span", {}, "EDS İHLALİ"), h("b", {}, d.asim || 0))));
+    if (d.iz){
+      const el = h("div", { style: "height:340px;border-radius:12px;border:1px solid var(--line);overflow:hidden" });
+      body.append(el);
+      const pts = decodePath(d.iz);
+      try {
+        const m = await makeMap(el, pts[0], 10);
+        m.line(pts, "#2563eb", 5);
+        m.dot("s", pts[0][0], pts[0][1], "#16a34a", "Başlangıç", "Başlangıç · " + hmOf(d.baslangic));
+        const e = pts[pts.length - 1];
+        m.dot("e", e[0], e[1], "#0f172a", r.yer || d.hedef || "Bitiş", "Bitiş · " + hmOf(d.bitis) + (d.hedef ? "<br>" + esc(d.hedef) : ""));
+        m.fit(pts);
+      } catch (err) { el.replaceWith(note(err.message)); }
+    }
+    const ks = d.koridorlar || [];
+    if (ks.length){
+      const list = h("div", { style: "display:flex;flex-direction:column;gap:6px" });
+      ks.forEach(k => {
+        const over = k.limit != null && k.ort > k.limit;
+        list.append(h("div", { class: "krow" + (over ? " over" : "") },
+          h("div", {}, h("strong", {}, k.ad), h("div", { class: "muted small" }, [k.km != null ? fmtKm(k.km) + " km" : null, fmtDk((k.sure || 0) / 60) + " sürdü", k.bekleme ? "bekleme " + fmtDk(k.bekleme / 60) : null, "limit " + (k.limit ?? "?")].filter(Boolean).join(" · "))),
+          h("b", {}, k.ort)));
+      });
+      body.append(h("h3", { style: "margin:6px 0 0" }, "Geçilen EDS koridorları"), list);
+    } else body.append(h("p", { class: "muted small" }, "Bu yolculukta EDS koridoru geçilmedi."));
+  } catch (e) { body.replaceChildren(note(e.message)); }
+}
+
+function csvDownload(rows){
+  const q = v => { const s = String(v ?? ""); return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const num = n => n == null ? "" : String(n).replace(".", ",");
+  const lines = [["Tarih", "Başlangıç", "Bitiş", "Çalışan", "Plaka", "Araç", "Hedef", "Varılan yer", "Km", "Süre (dk)", "Ortalama km/s", "Hareket ort. km/s", "EDS", "İhlal"].join(";")];
+  rows.forEach(r => lines.push([new Date(r.baslangic).toLocaleDateString("tr-TR"), hmOf(r.baslangic), hmOf(r.bitis), r.calisan, r.plaka, r.arac, r.hedef, r.yer,
+    num(r.km), r.sure_dk, r.ortalama ?? "", r.hareket_ort ?? "", r.koridor, r.asim].map(q).join(";")));
+  const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const a = h("a", { href: URL.createObjectURL(blob), download: "yolculuklar-" + today() + ".csv" });
+  document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+
+async function adminTrips(){
+  A.tf = A.tf || { view: "liste", range: "ay", min50: false, ihlal: false, who: "", plate: "" };
+  const F = A.tf;
+  const [a0, b0] = monthRange(0);
+  const bas = h("input", { type: "date", value: F.bas ?? a0 }), bit = h("input", { type: "date", value: F.bit ?? b0 });
+  const who = h("select", {}, h("option", { value: "" }, "Herkes"), A.people.map(p => h("option", { value: p.ad, selected: F.who === p.ad }, p.ad)));
+  const plate = h("select", {}, h("option", { value: "" }, "Bütün araçlar"));
+  const kpis = h("div", { class: "kpis" }), out = h("div", { style: "display:flex;flex-direction:column;gap:12px" });
+  let rows = [], shown = [];
+  const xls = h("button", { class: "btn ok", type: "button", onclick: () => csvDownload(shown) }, "⬇ Excel indir");
+  const seg = h("div", { class: "seg" }, [["liste", "Yolculuklar"], ["karne", "Sürücü karnesi"], ["musteri", "Müşteriler"]].map(([k, t]) =>
+    h("button", { type: "button", "aria-pressed": String(F.view === k), onclick: ev => { F.view = k; [...seg.children].forEach(b => b.setAttribute("aria-pressed", String(b === ev.currentTarget))); render(); } }, t)));
+  const chip = (label, on, fn) => h("button", { type: "button", class: "chip", "aria-pressed": String(on), onclick: fn }, label);
+  const chips = h("div", { class: "chips" });
+  function drawChips(){
+    chips.replaceChildren(
+      chip("Bu ay", F.range === "ay", () => { F.range = "ay"; [bas.value, bit.value] = monthRange(0); fetchRows(); }),
+      chip("Geçen ay", F.range === "gecen", () => { F.range = "gecen"; [bas.value, bit.value] = monthRange(-1); fetchRows(); }),
+      chip("Tümü", F.range === "tum", () => { F.range = "tum"; bas.value = ""; bit.value = ""; fetchRows(); }),
+      chip("50 km üstü", F.min50, () => { F.min50 = !F.min50; render(); }),
+      chip("İhlalli", F.ihlal, () => { F.ihlal = !F.ihlal; render(); }));
+  }
+  app.append(h("div", { class: "split" }, h("h2", {}, "Yolculuklar"), h("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, seg, xls)),
+    h("p", { class: "muted small", style: "margin:0" }, "Koridor Ortalama uygulamasında şirket aracıyla “İş” olarak yapılan yolculuklar. Şahsi yolculuklar firmaya hiç gelmez."),
+    kpis,
+    h("div", { class: "card" }, chips, h("div", { class: "row" }, h("label", {}, "Başlangıç", bas), h("label", {}, "Bitiş", bit), h("label", {}, "Sürücü", who), h("label", {}, "Araç", plate))),
+    out);
+  function filtered(){
+    return rows.filter(r => (!F.who || r.calisan === F.who) && (!F.plate || (r.plaka || "") === F.plate) && (!F.min50 || Number(r.km) >= 50) && (!F.ihlal || r.asim > 0));
+  }
+  function render(){
+    drawChips();
+    shown = filtered();
+    const km = shown.reduce((s, r) => s + Number(r.km), 0), dk = shown.reduce((s, r) => s + r.sure_dk, 0);
+    const ih = shown.reduce((s, r) => s + (r.asim || 0), 0), ko = shown.reduce((s, r) => s + (r.koridor || 0), 0);
+    const drivers = new Set(shown.map(r => r.calisan)).size, cars = new Set(shown.map(r => r.plaka).filter(Boolean)).size;
+    kpis.replaceChildren(
+      h("div", { class: "kpi k-blue" }, h("span", {}, "TOPLAM KM"), h("b", {}, fmtKm(km)), h("small", {}, shown.length + " yolculuk")),
+      h("div", { class: "kpi k-purple" }, h("span", {}, "SÜRÜCÜ · ARAÇ"), h("b", {}, drivers + " · " + cars), h("small", {}, "bu listede")),
+      h("div", { class: "kpi k-teal" }, h("span", {}, "ORTALAMA HIZ"), h("b", {}, dk ? Math.round(km / (dk / 60)) + " km/s" : "—"), h("small", {}, "toplam süre " + fmtDk(dk))),
+      h("div", { class: "kpi " + (ih ? "k-red" : "k-green") }, h("span", {}, "EDS İHLALİ"), h("b", {}, ih), h("small", {}, ko + " koridordan")));
+    out.textContent = "";
+    if (!shown.length){ out.append(h("div", { class: "card" }, h("p", { class: "muted", style: "margin:0" }, "Bu seçimde yolculuk yok."))); return; }
+    if (F.view === "liste"){
+      let day = "", grid = null;
+      for (const r of shown){
+        const dkey = new Date(r.baslangic).toLocaleDateString("tr-TR", { weekday: "long", day: "numeric", month: "long" });
+        if (dkey !== day){ day = dkey; out.append(h("div", { class: "month" }, dkey)); grid = h("div", { class: "tgrid" }); out.append(grid); }
+        grid.append(tripCard(r, tripDialog));
+      }
+    } else if (F.view === "karne"){
+      const by = {};
+      shown.forEach(r => { const v = by[r.calisan] = by[r.calisan] || { n: 0, km: 0, dk: 0, ih: 0, ko: 0, pl: new Set(), ust50: 0 };
+        v.n++; v.km += Number(r.km); v.dk += r.sure_dk; v.ih += r.asim || 0; v.ko += r.koridor || 0; r.plaka && v.pl.add(r.plaka); if (Number(r.km) >= 50) v.ust50++; });
+      const grid = h("div", { class: "tgrid" });
+      Object.entries(by).sort((x, y) => y[1].km - x[1].km).forEach(([ad, v]) => {
+        grid.append(h("div", { class: "pcard" },
+          h("div", { style: "display:flex;align-items:center;gap:12px" }, h("span", { class: "avatar", style: "background:" + personColor(ad) }, initials(ad)),
+            h("div", {}, h("div", { class: "ttitle" }, ad), h("div", { class: "tsub" }, [...v.pl].join(", ") || "—"))),
+          h("div", { class: "tstats" },
+            h("div", { class: "s1" }, h("b", {}, fmtKm(v.km)), h("span", {}, "KM")),
+            h("div", { class: "s2" }, h("b", {}, v.n), h("span", {}, "YOLCULUK")),
+            h("div", { class: "s3" }, h("b", {}, v.dk ? Math.round(v.km / (v.dk / 60)) : "—"), h("span", {}, "ORT km/s"))),
+          h("div", { class: "pills" },
+            h("span", { class: "pill p-eds" }, v.ko + " EDS"),
+            h("span", { class: "pill " + (v.ih ? "p-bad" : "p-ok") }, v.ih ? v.ih + " ihlal" : "İhlal yok"),
+            v.ust50 ? h("span", { class: "pill p-place" }, v.ust50 + " yolculuk 50 km üstü") : null),
+          h("button", { class: "btn link", type: "button", onclick: () => { F.who = ad; who.value = ad; F.view = "liste"; [...seg.children].forEach((b, i) => b.setAttribute("aria-pressed", String(i === 0))); render(); } }, "Yolculuklarını gör ›")));
+      });
+      out.append(grid);
+    } else {
+      const by = {};
+      shown.forEach(r => { if (!r.yer) return; const v = by[r.yer] = by[r.yer] || { n: 0, km: 0, son: r.baslangic, who: new Set() };
+        v.n++; v.km += Number(r.km); if (r.baslangic > v.son) v.son = r.baslangic; v.who.add(r.calisan); });
+      const list = Object.entries(by).sort((x, y) => y[1].n - x[1].n);
+      if (!list.length){ out.append(h("div", { class: "card" }, h("p", { class: "muted", style: "margin:0" }, "Bu seçimde kayıtlı bir yere (müşteri/iş yeri) varılan yolculuk yok. Çalışanlar uygulamada yeri “Kaydet” ile isimlendirince, oraya varılan yolculuklar o isimle burada toplanır."))); return; }
+      const grid = h("div", { class: "tgrid" });
+      list.forEach(([yer, v]) => grid.append(h("div", { class: "pcard" },
+        h("div", { style: "display:flex;align-items:center;gap:12px" }, h("span", { class: "avatar", style: "background:" + personColor(yer) }, "📍"),
+          h("div", {}, h("div", { class: "ttitle" }, yer), h("div", { class: "tsub" }, "Son ziyaret " + new Date(v.son).toLocaleDateString("tr-TR", { day: "numeric", month: "long" })))),
+        h("div", { class: "tstats" },
+          h("div", { class: "s2" }, h("b", {}, v.n), h("span", {}, "ZİYARET")),
+          h("div", { class: "s1" }, h("b", {}, fmtKm(v.km)), h("span", {}, "KM")),
+          h("div", { class: "s3" }, h("b", {}, v.who.size), h("span", {}, "SÜRÜCÜ"))),
+        h("div", { class: "tsub" }, [...v.who].join(", ")))));
+      out.append(grid);
+    }
+  }
+  async function fetchRows(){
+    F.bas = bas.value; F.bit = bit.value;
+    out.replaceChildren(h("p", { class: "muted" }, "Yükleniyor…"));
+    try {
+      rows = await rpc("y_yolculuklar", { p_token: A.token, p_bas: bas.value || null, p_bit: bit.value || null }) || [];
+      const plates = [...new Set(rows.map(r => r.plaka).filter(Boolean))].sort();
+      plate.replaceChildren(h("option", { value: "" }, "Bütün araçlar"), ...plates.map(p => h("option", { value: p, selected: F.plate === p }, p)));
+      render();
+    } catch (e) { out.replaceChildren(note(e.message)); }
+  }
+  who.addEventListener("change", () => { F.who = who.value; render(); });
+  plate.addEventListener("change", () => { F.plate = plate.value; render(); });
+  [bas, bit].forEach(x => x.addEventListener("change", () => { F.range = ""; fetchRows(); }));
+  fetchRows();
+}
+
+/** Muayenesi yaklaşan araçlar (her yönetici sekmesinin üstünde). */
+function muayeneBar(cars){
+  const due = (cars || []).filter(c => c.aktif && c.kalan_gun != null && c.kalan_gun <= 30).sort((a, b) => a.kalan_gun - b.kalan_gun);
+  if (!due.length) return null;
+  const red = due.some(c => c.kalan_gun <= 7);
+  return h("div", { class: "alertbar" + (red ? " red" : "") },
+    h("span", { class: "abicon" }, "🗓"),
+    h("div", { style: "flex:1 1 240px" }, h("strong", {}, "Muayene yaklaşıyor"),
+      h("div", { class: "small" }, due.map(c => c.plaka + (c.ad ? " (" + c.ad + ")" : "") + " · " + muayeneText(c.kalan_gun)).join(" — "))),
+    A.tab !== "araclar" ? h("button", { class: "btn link", type: "button", onclick: () => { A.tab = "araclar"; adminBoot(); } }, "Araçlara git ›") : null);
+}
+
+function carForm(c, onDone){
+  const plaka = h("input", { value: c ? c.plaka : "", placeholder: "42 ABC 123", required: true });
+  const ad = h("input", { value: c ? c.ad : "", placeholder: "ör. Beyaz minivan" });
+  const mu = h("input", { type: "date", value: c && c.muayene ? c.muayene : "" });
+  const aktif = h("input", { type: "checkbox", checked: c ? c.aktif : true, style: "width:auto" });
+  const out = h("div");
+  const save = h("button", { class: "btn primary", type: "button", onclick: async () => {
+    out.textContent = ""; busy(save, true);
+    try { await rpc("y_arac_kaydet", { p_token: A.token, p_id: c ? c.id : null, p_plaka: plaka.value, p_ad: ad.value, p_muayene: mu.value || null, p_aktif: aktif.checked }); onDone(); }
+    catch (e) { out.append(note(e.message)); }
+    busy(save, false);
+  } }, c ? "Kaydet" : "Aracı ekle");
+  const del = c ? h("button", { class: "btn danger", type: "button", onclick: async () => {
+    if (!confirm(c.plaka + " listeden silinsin mi? (Yolculuk kayıtları silinmez.)")) return;
+    try { await rpc("y_arac_sil", { p_token: A.token, p_id: c.id }); onDone(); } catch (e) { out.append(note(e.message)); }
+  } }, "Sil") : null;
+  return h("div", { class: "card" }, h("div", { class: "row" }, h("label", {}, "Plaka", plaka), h("label", {}, "Araç adı", ad), h("label", {}, "Muayene tarihi", mu)),
+    h("label", { style: "flex-direction:row;align-items:center;gap:8px;color:var(--fg)" }, aktif, "Aktif (kullanımda)"), out,
+    h("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, save, del));
+}
+
+/** Araç sayfası: muayene, bu ayki km, sürücüler, son konum ve son yolculuklar. */
+async function carDialog(c){
+  const dlg = h("dialog", { class: "dlg" });
+  const body = h("div", { style: "display:flex;flex-direction:column;gap:12px" });
+  dlg.append(h("div", { class: "split" }, h("h2", { style: "margin:0" }, c.plaka + (c.ad ? " · " + c.ad : "")), h("button", { class: "btn", type: "button", onclick: () => dlg.close() }, "Kapat")), body);
+  dlg.addEventListener("close", () => dlg.remove());
+  document.body.append(dlg); dlg.showModal();
+  const mk = muayeneKind(c.kalan_gun);
+  body.append(h("div", { class: "kpis" },
+    h("div", { class: "kpi " + (mk === "red" ? "k-red" : mk === "orange" ? "k-orange" : mk === "ok" ? "k-green" : "k-purple") }, h("span", {}, "MUAYENE"),
+      h("b", {}, c.muayene ? tr(c.muayene) : "—"), h("small", {}, muayeneText(c.kalan_gun))),
+    h("div", { class: "kpi k-blue" }, h("span", {}, "BU AY"), h("b", {}, fmtKm(c.ay_km) + " km"), h("small", {}, c.ay_yolculuk + " yolculuk")),
+    h("div", { class: "kpi k-teal" }, h("span", {}, "KULLANANLAR (BU AY)"), h("b", { style: "font-size:20px" }, (c.suruculer || []).join(", ") || "—"))));
+  if (c.son_konum){
+    const k = c.son_konum;
+    body.append(h("div", { class: "muted small" }, "Son konum: " + k.ad + " · " + agoText(k.zaman)));
+    const el = h("div", { style: "height:260px;border-radius:12px;border:1px solid var(--line);overflow:hidden" });
+    body.append(el);
+    try { const m = await makeMap(el, [k.lat, k.lon], 13); m.dot("k", k.lat, k.lon, "#2563eb", c.plaka, esc(k.ad) + "<br>" + esc(agoText(k.zaman))); } catch (e) { el.replaceWith(note(e.message)); }
+  }
+  const tripsBox = h("div", { class: "tgrid" });
+  body.append(h("h3", { style: "margin:4px 0 0" }, "Son yolculukları"), tripsBox);
+  try {
+    const from = new Date(); from.setDate(from.getDate() - 90);
+    const rows = (await rpc("y_yolculuklar", { p_token: A.token, p_bas: iso(from), p_bit: null }) || [])
+      .filter(r => (r.plaka || "").replace(/\s/g, "").toUpperCase() === c.plaka.replace(/\s/g, "").toUpperCase()).slice(0, 12);
+    if (!rows.length) tripsBox.replaceWith(h("p", { class: "muted small" }, "Son 90 günde bu araçla iş yolculuğu yok."));
+    rows.forEach(r => tripsBox.append(tripCard(r, x => { dlg.close(); tripDialog(x); })));
+  } catch (e) { tripsBox.replaceWith(note(e.message)); }
+}
+
 async function adminVehicles(){
-  const head = h("div", { class: "split" }, h("h2", {}, "Araçlar"), h("span", { class: "muted small", id: "v-upd" }, ""));
+  const carsBox = h("div", { style: "display:flex;flex-direction:column;gap:10px" });
+  app.append(h("div", { class: "split" }, h("h2", {}, "Şirket araçları"),
+    h("button", { class: "btn primary", type: "button", onclick: () => { carsBox.prepend(carForm(null, () => adminBoot())); } }, "+ Araç ekle")), carsBox);
+  try {
+    const res = await rpc("y_araclar", { p_token: A.token });
+    A.cars = res.araclar || [];
+    const grid = h("div", { class: "tgrid" });
+    A.cars.forEach(c => {
+      const mk = muayeneKind(c.kalan_gun);
+      const editBox = h("div");
+      grid.append(h("div", { class: "pcard" + (c.aktif ? "" : " off") },
+        h("div", { style: "display:flex;align-items:center;gap:12px" }, h("span", { class: "avatar", style: "background:#0f172a" }, "🚐"),
+          h("div", { style: "flex:1;min-width:0" }, h("div", { class: "ttitle" }, c.plaka), h("div", { class: "tsub" }, (c.ad || "—") + (c.aktif ? "" : " · pasif")))),
+        h("div", { class: "mband " + mk }, "🗓 " + muayeneText(c.kalan_gun) + (c.muayene ? " · " + tr(c.muayene) : "")),
+        h("div", { class: "tstats" },
+          h("div", { class: "s1" }, h("b", {}, fmtKm(c.ay_km)), h("span", {}, "KM BU AY")),
+          h("div", { class: "s2" }, h("b", {}, c.ay_yolculuk), h("span", {}, "YOLCULUK")),
+          h("div", { class: "s3" }, h("b", {}, (c.suruculer || []).length), h("span", {}, "SÜRÜCÜ"))),
+        h("div", { class: "tsub" }, c.son_konum ? "Son konum: " + c.son_konum.ad + " · " + agoText(c.son_konum.zaman) : "Konum bilgisi yok"),
+        h("div", { style: "display:flex;gap:8px;flex-wrap:wrap" },
+          h("button", { class: "btn", type: "button", onclick: () => carDialog(c) }, "Araç sayfası"),
+          h("button", { class: "btn", type: "button", onclick: () => editBox.replaceChildren(carForm(c, () => adminBoot())) }, "Düzenle")), editBox));
+    });
+    if (A.cars.length) carsBox.append(grid);
+    else carsBox.append(note("Henüz şirket aracı eklenmedi. “+ Araç ekle” ile plakayı ve muayene tarihini gir; muayene yaklaşınca hem burada hem aracı kullanan çalışanın uygulamasında uyarı çıkar.", "info"));
+    if ((res.yeni || []).length) carsBox.append(h("div", { class: "card" }, h("strong", {}, "Yolculuklarda görülen, listede olmayan plakalar"),
+      h("div", { class: "chips" }, res.yeni.map(p => h("button", { type: "button", class: "chip", onclick: async () => {
+        try { await rpc("y_arac_kaydet", { p_token: A.token, p_id: null, p_plaka: p, p_ad: "", p_muayene: null, p_aktif: true }); adminBoot(); } catch (e) { alert(e.message); }
+      } }, "+ " + p)))));
+  } catch (e) {
+    carsBox.append(note(/y_araclar|function|fonksiyon/i.test(e.message) ? "Araç listesi için Supabase güncellemesi (guncelleme-arac.sql) henüz çalıştırılmamış." : e.message));
+  }
+
+  const head = h("div", { class: "split", style: "margin-top:10px" }, h("h2", {}, "Canlı konumlar"), h("span", { class: "muted small", id: "v-upd" }, ""));
   const mapEl = h("div", { id: "vmap", style: "height:58vh;min-height:320px;border-radius:12px;border:1px solid var(--line);overflow:hidden;background:#e8ecef" });
-  const list = h("div", { style: "display:flex;flex-direction:column;gap:8px" });
-  app.append(head, h("p", { class: "muted small" }, "Koridor Ortalama uygulamasında şirket aracıyla “İş” yolculuğu yapan çalışanların konumu. Yolculuk sürerken canlı görünür; bitince son iş konumu ve saati haritada kalır. Şahsi araç ve şahsi yolculuklardan hiçbir bilgi gelmez. Sayfa 30 sn'de bir yenilenir."), mapEl, list);
+  const list = h("div", { class: "tgrid" });
+  app.append(head, h("p", { class: "muted small", style: "margin:0" }, "Şirket aracıyla “İş” yolculuğu yapan çalışanların konumu. Yolculuk sürerken canlı görünür; bitince son iş konumu ve saati kalır. Şahsi araç ve şahsi yolculuklardan hiçbir bilgi gelmez. 30 sn'de bir yenilenir."), mapEl, list);
   let map = null;
   try { map = await makeMap(mapEl); } catch (e) { mapEl.replaceWith(note(e.message)); }
   $("#v-upd") && ($("#v-upd").dataset.lib = map ? (map.lib === "google" ? "Google haritası" : "OpenStreetMap") : "");
@@ -1116,124 +1469,28 @@ async function adminVehicles(){
         const st = vehState(v);
         const detail = [
           v.plaka || v.arac ? [v.plaka, v.arac].filter(Boolean).join(" · ") : null,
-          v.koridor ? "Koridor: " + v.koridor + (v.ortalama != null ? " · ort. " + v.ortalama + (v.limit ? " / " + v.limit : "") + " km/s" : "") : null,
+          v.koridor ? "EDS: " + v.koridor + (v.ortalama != null ? " · ort. " + v.ortalama + (v.limit ? " / " + v.limit : "") + " km/s" : "") : null,
           v.hedef ? "Hedef: " + v.hedef : null,
-          v.km != null && Number(v.km) > 0 ? "Bu sürüş " + Number(v.km).toLocaleString("tr-TR") + " km" : null,
-          v.zaman ? "Son konum alındı: " + new Date(v.zaman).toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) + " (" + agoText(v.zaman) + ")" : null
+          v.km != null && Number(v.km) > 0 ? "Bu sürüş " + fmtKm(Number(v.km)) + " km" : null
         ].filter(Boolean);
         let mk = null;
         if (v.lat != null && map){
           pts.push([v.lat, v.lon]);
           mk = map.dot("v" + v.calisan_id, v.lat, v.lon, st.c, v.ad, "<b>" + esc(v.ad) + "</b><br>" + esc(st.t) + "<br>" + detail.map(esc).join("<br>"));
         }
-        const card = h("div", { class: "card", style: "border-left:5px solid " + st.c + ";cursor:" + (v.lat != null ? "pointer" : "default") },
-          h("div", { class: "split" }, h("strong", {}, v.ad), h("span", { class: "tag", style: "background:" + st.c + "22;color:" + st.c }, st.t)),
-          detail.length ? h("div", { class: "muted small" }, detail.join(" · ")) : null);
+        const card = h("div", { class: "pcard", style: "cursor:" + (v.lat != null ? "pointer" : "default") },
+          h("div", { style: "display:flex;align-items:center;gap:12px" }, h("span", { class: "avatar", style: "background:" + personColor(v.ad) }, initials(v.ad)),
+            h("div", { style: "flex:1;min-width:0" }, h("div", { class: "ttitle" }, v.ad), h("span", { class: "pill", style: "background:" + st.c + ";color:#fff;display:inline-block;margin-top:4px" }, st.t))),
+          detail.length ? h("div", { class: "tsub" }, detail.join(" · ")) : null);
         if (mk) card.addEventListener("click", () => { map.center(v.lat, v.lon); mk.open(); mapEl.scrollIntoView({ behavior: "smooth" }); });
         list.append(card);
       }
       if (map && pts.length && !fitted){ fitted = true; map.fit(pts); }
-      if (!rows.some(v => v.lat != null)) list.prepend(note("Henüz konum paylaşan yok. Çalışan, Koridor Ortalama uygulamasında “Firma” bölümünden bağlanıp şirket aracıyla “İş” yolculuğu yapınca burada görünür.", "info"));
+      if (!rows.some(v => v.lat != null)) list.prepend(note("Henüz konum paylaşan yok.", "info"));
     } catch (e) { list.replaceChildren(note(e.message)); }
   }
   await load();
   A.mapTimer = setInterval(() => { if (A.tab === "araclar" && document.body.contains(list)) load(); else { clearInterval(A.mapTimer); A.mapTimer = null; } }, 30000);
-  app.append(await tripReport());
-}
-
-/* İş yolculukları: km raporu + güne göre liste + tıklayınca rota ve koridor ayrıntısı (şahsi yolculuklar hiç gelmez) */
-async function tripReport(){
-  const box = h("div", { style: "display:flex;flex-direction:column;gap:10px;margin-top:18px" });
-  const [a0, b0] = monthRange(0);
-  const bas = h("input", { type: "date", value: a0 }), bit = h("input", { type: "date", value: b0 });
-  const who = h("select", {}, h("option", { value: "" }, "Herkes"), A.people.map(p => h("option", { value: p.ad }, p.ad)));
-  const quick = h("div", { class: "chips" },
-    h("button", { class: "chip", type: "button", onclick: () => { [bas.value, bit.value] = monthRange(0); load(); } }, "Bu ay"),
-    h("button", { class: "chip", type: "button", onclick: () => { [bas.value, bit.value] = monthRange(-1); load(); } }, "Geçen ay"),
-    h("button", { class: "chip", type: "button", onclick: () => { bas.value = ""; bit.value = ""; load(); } }, "Tümü"));
-  const out = h("div", { style: "display:flex;flex-direction:column;gap:8px" });
-  box.append(h("h2", {}, "İş yolculukları"),
-    h("div", { class: "card" }, h("div", { class: "row" }, h("label", {}, "Başlangıç", bas), h("label", {}, "Bitiş", bit), h("label", {}, "Çalışan", who)), quick,
-      h("p", { class: "muted small" }, "Uygulamada “İş” olarak işaretlenen yolculuklar. Ayrıntı (rota haritası, koridor ortalamaları) için yolculuğa dokun. Şahsi yolculuklar firmaya hiç gelmez.")), out);
-  const dk = m => m >= 60 ? Math.floor(m / 60) + " sa " + (m % 60) + " dk" : m + " dk";
-  const km = n => Number(n).toLocaleString("tr-TR", { maximumFractionDigits: 1 }) + " km";
-  const hm = d => d.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
-  async function detail(r, holder){
-    holder.replaceChildren(h("p", { class: "muted small" }, "Yükleniyor…"));
-    try {
-      const d = await rpc("y_yolculuk_detay", { p_token: A.token, p_id: r.id });
-      holder.textContent = "";
-      const stats = h("div", { class: "tiles4" },
-        ...[["Mesafe", km(d.km)], ["Süre", dk(d.sure_dk)], ["Ortalama", d.ortalama != null ? d.ortalama + " km/s" : "—"], ["Hareket ort.", d.hareket_ort != null ? d.hareket_ort + " km/s" : "—"]]
-          .map(([k, v]) => h("div", {}, h("span", { class: "muted small" }, k), h("strong", {}, v))));
-      holder.append(stats);
-      if (d.iz){
-        const el = h("div", { style: "height:340px;border-radius:12px;border:1px solid var(--line);overflow:hidden;margin-top:8px" });
-        holder.append(el);
-        const pts = decodePath(d.iz);
-        try {
-          const m = await makeMap(el, pts[0], 10);
-          m.line(pts, "#1a73e8", 5);
-          m.dot("s", pts[0][0], pts[0][1], "#188038", "Başlangıç", "Başlangıç · " + hm(new Date(d.baslangic)));
-          const e = pts[pts.length - 1];
-          m.dot("e", e[0], e[1], "#d93025", d.hedef || "Bitiş", "Bitiş · " + hm(new Date(d.bitis)) + (d.hedef ? "<br>" + esc(d.hedef) : ""));
-          m.fit(pts);
-        } catch (err) { el.replaceWith(note(err.message)); }
-      } else holder.append(h("p", { class: "muted small", style: "margin:6px 0" }, "Bu yolculuğun rota çizgisi yok (uygulamanın eski sürümüyle kaydedilmiş)."));
-      const ks = d.koridorlar || [];
-      if (ks.length){
-        holder.append(h("h3", { style: "margin:10px 0 4px" }, "Koridorlar"));
-        const tb = h("tbody");
-        ks.forEach(k => {
-          const over = k.limit != null && k.ort > k.limit;
-          tb.append(h("tr", {}, h("td", {}, (over ? "⚠ " : "✓ ") + k.ad), h("td", { style: "font-weight:700;color:" + (over ? "var(--bad)" : "var(--ok)") }, k.ort + " km/s"),
-            h("td", {}, k.limit != null ? k.limit : "?"), h("td", {}, k.km != null ? km(k.km) : "—"), h("td", {}, dk(Math.round((k.sure || 0) / 60))), h("td", {}, k.bekleme ? dk(Math.round(k.bekleme / 60)) : "—")));
-        });
-        holder.append(h("div", { class: "tbl" }, h("table", {}, h("thead", {}, h("tr", {}, ["Koridor", "Ortalama", "Limit", "Uzunluk", "Süre", "Bekleme"].map(x => h("th", {}, x)))), tb)));
-      } else holder.append(h("p", { class: "muted small", style: "margin:6px 0" }, "Bu yolculukta ortalama hız koridoru geçilmedi."));
-    } catch (e) { holder.replaceChildren(note(e.message)); }
-  }
-  async function load(){
-    out.replaceChildren(h("p", { class: "muted" }, "Yükleniyor…"));
-    try {
-      let rows = await rpc("y_yolculuklar", { p_token: A.token, p_bas: bas.value || null, p_bit: bit.value || null }) || [];
-      if (who.value) rows = rows.filter(r => r.calisan === who.value);
-      out.textContent = "";
-      if (!rows.length){ out.append(h("p", { class: "muted" }, "Bu aralıkta iş yolculuğu yok.")); return; }
-      const by = {};
-      rows.forEach(r => { const k = r.calisan; (by[k] = by[k] || { n: 0, km: 0, dk: 0, asim: 0, plakalar: new Set() }); by[k].n++; by[k].km += Number(r.km); by[k].dk += r.sure_dk; by[k].asim += r.asim; r.plaka && by[k].plakalar.add(r.plaka); });
-      const tb = h("tbody"); let T = 0;
-      Object.entries(by).sort((x, y) => y[1].km - x[1].km).forEach(([ad, v]) => {
-        T += v.km;
-        tb.append(h("tr", {}, h("td", {}, ad), h("td", {}, v.n), h("td", { style: "font-weight:700" }, km(v.km)), h("td", {}, dk(v.dk)), h("td", {}, v.asim || "—"), h("td", {}, [...v.plakalar].join(", "))));
-      });
-      tb.append(h("tr", { class: "total" }, h("td", {}, "Toplam"), h("td", {}, rows.length), h("td", {}, km(T)), h("td", {}, ""), h("td", {}, ""), h("td", {}, "")));
-      out.append(h("div", { class: "tbl" }, h("table", {}, h("thead", {}, h("tr", {}, ["Çalışan", "Yolculuk", "Km", "Süre", "Koridorda aşım", "Araç"].map(x => h("th", {}, x)))), tb)));
-      let day = "";
-      for (const r of rows){
-        const t0 = new Date(r.baslangic), t1 = new Date(r.bitis);
-        const dkey = t0.toLocaleDateString("tr-TR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-        if (dkey !== day){ day = dkey; out.append(h("div", { class: "month" }, dkey)); }
-        const holder = h("div", { class: "hidden", style: "margin-top:10px" });
-        let opened = false;
-        const card = h("div", { class: "card", style: "cursor:pointer;border-left:5px solid " + (r.asim ? "var(--bad)" : "var(--accent)") },
-          h("div", { class: "split" },
-            h("div", {}, h("strong", {}, r.calisan + (r.hedef ? " → " + r.hedef : "")),
-              h("div", { class: "muted small" }, hm(t0) + "–" + hm(t1) + " · " + dk(r.sure_dk) + (r.ortalama != null ? " · ort. " + r.ortalama + " km/s" : "") + (r.plaka ? " · " + r.plaka : "") +
-                (r.koridor ? " · " + r.koridor + " koridor" + (r.asim ? ", " + r.asim + " aşım" : "") : "") + (r.iz_var ? " · 🗺 rota" : ""))),
-            h("strong", { style: "font-variant-numeric:tabular-nums;white-space:nowrap" }, km(r.km))), holder);
-        card.addEventListener("click", ev => {
-          if (holder.contains(ev.target)) return;
-          holder.classList.toggle("hidden");
-          if (!opened){ opened = true; detail(r, holder); }
-        });
-        out.append(card);
-      }
-    } catch (e) { out.replaceChildren(note(e.message)); }
-  }
-  [bas, bit, who].forEach(x => x.addEventListener("change", load));
-  load();
-  return box;
 }
 
 async function adminPeople(){
