@@ -187,7 +187,7 @@ dialog.dlg::backdrop{background:rgba(15,23,42,.55)}
 </header>
 <main id="app"></main>
 
-<script src="config.js?v=13"></script>
+<script src="config.js?v=14"></script>
 <script>
 "use strict";
 const $ = (s, el = document) => el.querySelector(s);
@@ -936,7 +936,32 @@ async function adminPayments(){
   const tur = h("select", { id: "o-tur" }, ["Yol parası", "Avans", "Hak ediş ödemesi", "Diğer"].map(x => h("option", { value: x }, x)));
   const acik = h("input", { id: "o-acik", placeholder: "ör. Nevşehir işi için" });
   const out = h("div"), save = h("button", { class: "btn primary", type: "submit" }, "Ödemeyi kaydet");
+  // Seçilen çalışanın güncel bakiyesi (tüm zamanlar: hak ediş − yatırılanlar); "tamamını kapat" tiki bu tutarı yazar
+  const sifirla = h("input", { type: "checkbox", id: "o-sifirla", style: "width:auto", disabled: true });
+  const bakInfo = h("span", { class: "muted small" }, "Çalışan seçince güncel bakiye görünür.");
+  let bakiye = null;
+  async function loadBalance(){
+    bakiye = null; sifirla.checked = false; sifirla.disabled = true;
+    if (tutar.readOnly){ tutar.readOnly = false; tutar.value = ""; }
+    if (!kisi.value){ bakInfo.textContent = "Çalışan seçince güncel bakiye görünür."; return; }
+    bakInfo.textContent = "Bakiye hesaplanıyor…";
+    try {
+      const rows = await rpc("y_hesap", { p_token: A.token, p_bas: null, p_bit: null }) || [];
+      const r = rows.find(x => String(x.id) === String(kisi.value));
+      if (!r){ bakInfo.textContent = "Bu çalışanın hesabı bulunamadı."; return; }
+      bakiye = Math.round(((r.gun + (r.gec || 0)) * r.gunluk_ucret + Number(r.makine) - Number(r.odenen)) * 100) / 100;
+      if (bakiye > 0){ bakInfo.textContent = "Güncel bakiye: " + TL(bakiye) + " ödenecek"; sifirla.disabled = false; }
+      else bakInfo.textContent = "Güncel bakiye: " + TL(bakiye) + (bakiye < 0 ? " (fazla yatırılmış)" : " (borç yok)");
+    } catch (e) { bakInfo.textContent = e.message; }
+  }
+  kisi.addEventListener("change", loadBalance);
+  sifirla.addEventListener("change", () => {
+    if (sifirla.checked && bakiye > 0){ tutar.value = bakiye.toFixed(2); tur.value = "Hak ediş ödemesi"; tutar.readOnly = true; }
+    else { tutar.readOnly = false; if (!sifirla.checked) tutar.value = ""; }
+  });
   f.append(h("h2", {}, "Yatırılan tutar ekle"), h("div", { class: "row" }, h("label", {}, "Çalışan", kisi), h("label", {}, "Tarih", tarih)),
+    h("div", { style: "display:flex;flex-wrap:wrap;align-items:center;gap:10px" },
+      h("label", { style: "flex-direction:row;align-items:center;gap:8px;color:var(--fg);font-weight:600" }, sifirla, "Borcun tamamını kapat (bakiyeyi sıfırla)"), bakInfo),
     h("div", { class: "row" }, h("label", {}, "Tutar (TL)", tutar), h("label", {}, "Tür", tur)), h("label", {}, "Açıklama", acik), out, save);
   const filt = personSelect("o-filtre");
   const list = h("div", { style: "display:flex;flex-direction:column;gap:8px" });
@@ -963,7 +988,7 @@ async function adminPayments(){
     ev.preventDefault(); out.textContent = ""; busy(save, true, "Kaydediliyor…");
     try {
       await rpc("y_odeme_ekle", { p_token: A.token, p_calisan: Number(kisi.value), p_tarih: tarih.value, p_tutar: Number(tutar.value), p_tur: tur.value, p_aciklama: acik.value });
-      out.append(note("Kaydedildi.", "ok")); tutar.value = ""; acik.value = ""; load();
+      out.append(note("Kaydedildi.", "ok")); tutar.value = ""; acik.value = ""; tutar.readOnly = false; load(); loadBalance();
     } catch (e) { out.append(note(e.message)); }
     busy(save, false, "Ödemeyi kaydet");
   });
