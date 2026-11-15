@@ -187,7 +187,7 @@ dialog.dlg::backdrop{background:rgba(15,23,42,.55)}
 </header>
 <main id="app"></main>
 
-<script src="config.js?v=14"></script>
+<script src="config.js?v=15"></script>
 <script>
 "use strict";
 const $ = (s, el = document) => el.querySelector(s);
@@ -849,6 +849,58 @@ async function adminAccount(){
   load();
 }
 
+// Hesap hareketleri: onaylı kayıtlardan hak edişler ve yatırılanlar, tarih sırasıyla yürüyen bakiye.
+async function ledgerData(who){
+  const [ent, pay] = await Promise.all([
+    rpc("y_kayitlar", { p_token: A.token, p_durum: "hepsi", p_calisan: who.id, p_bas: null, p_bit: null }),
+    rpc("y_odemeler", { p_token: A.token, p_calisan: who.id })]);
+  const wage = Number(who.ucret || 0);
+  const approved = (ent || []).filter(e => e.onay).sort((p, q) => p.baslangic < q.baslangic ? -1 : p.baslangic > q.baslangic ? 1 : p.id - q.id);
+  const pending = (ent || []).filter(e => !e.onay);
+  const covered = new Set(), gecDays = new Set(), rows = [];
+  for (const e of approved){
+    let yeni = 0, extra = 0;
+    if (!e.makine){
+      for (let d = parse(e.baslangic); iso(d) <= e.bitis; d.setDate(d.getDate() + 1)){ const k = iso(d); if (!covered.has(k)){ covered.add(k); yeni++; } }
+      if (e.gec && !gecDays.has(e.bitis)){ gecDays.add(e.bitis); extra = 1; }
+    }
+    const fee = Number(e.makine_ucreti || 0);
+    const parts = [];
+    if (e.makine) parts.push("⚙ Makine işi");
+    else parts.push(yeni + " gün" + (yeni !== e.gun ? " (" + (e.gun - yeni) + " gün başka kayıtla çakışıyor)" : "") + " × " + TL(wage));
+    if (extra) parts.push("🌙 geç dönüş " + e.gec_saat + " → +1 gün");
+    if (fee) parts.push("makine/iş ücreti " + TL(fee));
+    if (e.makine && !fee) parts.push("ücret girilmemiş");
+    rows.push({ key: e.baslangic + "a" + String(e.id).padStart(9, "0"), date: e.baslangic === e.bitis ? tr(e.baslangic) : trShort(e.baslangic) + "–" + tr(e.bitis),
+      title: e.firma || "—", sub: parts.join(" · "), amt: (yeni + extra) * wage + fee, gun: yeni + extra });
+  }
+  for (const o of pay || []){
+    const t = o.olusturma ? new Date(o.olusturma).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }) : "";
+    rows.push({ key: o.tarih + "b" + String(o.id).padStart(9, "0"), date: tr(o.tarih) + (t ? " " + t : ""), title: o.tur, sub: o.aciklama || "Yatırılan", amt: -Number(o.tutar), pay: o });
+  }
+  rows.sort((p, q) => p.key < q.key ? -1 : 1);
+  let bal = 0, hak = 0, odenen = 0, gun = 0;
+  for (const r of rows){ bal += r.amt; r.bal = bal; if (r.amt >= 0) hak += r.amt; else odenen -= r.amt; gun += r.gun || 0; }
+  return { rows, pending, bal, hak, odenen, gun };
+}
+
+/** Satır listesi (en yeni üstte); ödeme satırlarında Sil düğmesi. */
+function ledgerList(list, rows, onChange){
+  for (const r of rows.slice().reverse()){
+    let del = null;
+    if (r.pay){
+      del = h("button", { class: "btn link", type: "button", style: "color:var(--bad);padding:0", onclick: async () => {
+        if (del.dataset.sure !== "1"){ del.dataset.sure = "1"; del.textContent = "Emin misin?"; return; }
+        try { await rpc("y_odeme_sil", { p_token: A.token, p_id: r.pay.id }); onChange(); } catch (e) { list.prepend(note(e.message)); }
+      } }, "Sil");
+    }
+    list.append(h("div", { class: "lrow " + (r.amt < 0 ? "out" : "in") },
+      h("div", { class: "ld" }, r.date),
+      h("div", { class: "lt" }, h("strong", {}, r.title), h("div", { class: "muted small" }, r.sub), del),
+      h("div", { class: "la" }, h("b", {}, (r.amt < 0 ? "−" : "+") + TL(Math.abs(r.amt))), h("small", {}, "Bakiye " + TL(r.bal)))));
+  }
+}
+
 // Çalışan hesap dökümü: tarih sırasıyla hak edişler ve yatırılanlar, yürüyen bakiye.
 async function adminLedger(who){
   const box = h("div", { style: "display:flex;flex-direction:column;gap:10px" });
@@ -873,36 +925,7 @@ async function adminLedger(who){
   box.append(sum, f, h("h2", {}, "Hareketler"), list);
   async function load(){
     try {
-      const [ent, pay] = await Promise.all([
-        rpc("y_kayitlar", { p_token: A.token, p_durum: "hepsi", p_calisan: who.id, p_bas: null, p_bit: null }),
-        rpc("y_odemeler", { p_token: A.token, p_calisan: who.id })]);
-      const wage = Number(who.ucret || 0);
-      const approved = (ent || []).filter(e => e.onay).sort((p, q) => p.baslangic < q.baslangic ? -1 : p.baslangic > q.baslangic ? 1 : p.id - q.id);
-      const pending = (ent || []).filter(e => !e.onay);
-      const covered = new Set(), gecDays = new Set(), rows = [];
-      for (const e of approved){
-        let yeni = 0, extra = 0;
-        if (!e.makine){
-          for (let d = parse(e.baslangic); iso(d) <= e.bitis; d.setDate(d.getDate() + 1)){ const k = iso(d); if (!covered.has(k)){ covered.add(k); yeni++; } }
-          if (e.gec && !gecDays.has(e.bitis)){ gecDays.add(e.bitis); extra = 1; }
-        }
-        const fee = Number(e.makine_ucreti || 0);
-        const parts = [];
-        if (e.makine) parts.push("⚙ Makine işi");
-        else parts.push(yeni + " gün" + (yeni !== e.gun ? " (" + (e.gun - yeni) + " gün başka kayıtla çakışıyor)" : "") + " × " + TL(wage));
-        if (extra) parts.push("🌙 geç dönüş " + e.gec_saat + " → +1 gün");
-        if (fee) parts.push("makine/iş ücreti " + TL(fee));
-        if (e.makine && !fee) parts.push("ücret girilmemiş");
-        rows.push({ key: e.baslangic + "a" + String(e.id).padStart(9, "0"), date: e.baslangic === e.bitis ? tr(e.baslangic) : trShort(e.baslangic) + "–" + tr(e.bitis),
-          title: e.firma || "—", sub: parts.join(" · "), amt: (yeni + extra) * wage + fee, gun: yeni + extra });
-      }
-      for (const o of pay || []){
-        const t = o.olusturma ? new Date(o.olusturma).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }) : "";
-        rows.push({ key: o.tarih + "b" + String(o.id).padStart(9, "0"), date: tr(o.tarih) + (t ? " " + t : ""), title: o.tur, sub: o.aciklama || "Yatırılan", amt: -Number(o.tutar), pay: o });
-      }
-      rows.sort((p, q) => p.key < q.key ? -1 : 1);
-      let bal = 0, hak = 0, odenen = 0, gun = 0;
-      for (const r of rows){ bal += r.amt; r.bal = bal; if (r.amt >= 0) hak += r.amt; else odenen -= r.amt; gun += r.gun || 0; }
+      const { rows, pending, bal, hak, odenen, gun } = await ledgerData(who);
       sum.replaceChildren(h("div", { class: "card" }, h("div", { class: "stats" },
         h("div", {}, h("b", { style: "font-size:18px" }, TL(hak)), h("span", {}, "Hak ediş · " + gun + " gün")),
         h("div", {}, h("b", { style: "font-size:18px" }, TL(odenen)), h("span", {}, "Yatırılan")),
@@ -910,19 +933,7 @@ async function adminLedger(who){
         pending.length ? h("p", { class: "muted small", style: "margin:8px 0 0" }, pending.length + " kayıt onay bekliyor, onaylanınca hesaba eklenir.") : null));
       list.textContent = "";
       if (!rows.length) list.append(h("p", { class: "muted" }, "Henüz onaylı kayıt ya da ödeme yok."));
-      for (const r of rows.slice().reverse()){
-        let del = null;
-        if (r.pay){
-          del = h("button", { class: "btn link", style: "color:var(--bad);padding:0", onclick: async () => {
-            if (del.dataset.sure !== "1"){ del.dataset.sure = "1"; del.textContent = "Emin misin?"; return; }
-            try { await rpc("y_odeme_sil", { p_token: A.token, p_id: r.pay.id }); load(); } catch (e) { list.prepend(note(e.message)); }
-          } }, "Sil");
-        }
-        list.append(h("div", { class: "lrow " + (r.amt < 0 ? "out" : "in") },
-          h("div", { class: "ld" }, r.date),
-          h("div", { class: "lt" }, h("strong", {}, r.title), h("div", { class: "muted small" }, r.sub), del),
-          h("div", { class: "la" }, h("b", {}, (r.amt < 0 ? "−" : "+") + TL(Math.abs(r.amt))), h("small", {}, "Bakiye " + TL(r.bal)))));
-      }
+      ledgerList(list, rows, load);
     } catch (e) { list.replaceChildren(note(e.message)); }
   }
   load();
@@ -940,18 +951,40 @@ async function adminPayments(){
   const sifirla = h("input", { type: "checkbox", id: "o-sifirla", style: "width:auto", disabled: true });
   const bakInfo = h("span", { class: "muted small" }, "Çalışan seçince güncel bakiye görünür.");
   let bakiye = null;
+  // Seçilen çalışanın hareketleri: son sıfırlamadan (bakiye 0 ya da altına indiği andan) beri; hiç sıfırlanmadıysa son 2 ay
+  const movBox = h("div", { style: "display:flex;flex-direction:column;gap:8px" });
   async function loadBalance(){
     bakiye = null; sifirla.checked = false; sifirla.disabled = true;
     if (tutar.readOnly){ tutar.readOnly = false; tutar.value = ""; }
+    movBox.textContent = "";
     if (!kisi.value){ bakInfo.textContent = "Çalışan seçince güncel bakiye görünür."; return; }
     bakInfo.textContent = "Bakiye hesaplanıyor…";
+    const p = A.people.find(x => String(x.id) === String(kisi.value));
+    if (!p){ bakInfo.textContent = "Çalışan bulunamadı."; return; }
     try {
-      const rows = await rpc("y_hesap", { p_token: A.token, p_bas: null, p_bit: null }) || [];
-      const r = rows.find(x => String(x.id) === String(kisi.value));
-      if (!r){ bakInfo.textContent = "Bu çalışanın hesabı bulunamadı."; return; }
-      bakiye = Math.round(((r.gun + (r.gec || 0)) * r.gunluk_ucret + Number(r.makine) - Number(r.odenen)) * 100) / 100;
+      const d = await ledgerData({ id: p.id, ad: p.ad, ucret: p.gunluk_ucret });
+      bakiye = Math.round(d.bal * 100) / 100;
       if (bakiye > 0){ bakInfo.textContent = "Güncel bakiye: " + TL(bakiye) + " ödenecek"; sifirla.disabled = false; }
       else bakInfo.textContent = "Güncel bakiye: " + TL(bakiye) + (bakiye < 0 ? " (fazla yatırılmış)" : " (borç yok)");
+      let start = -1;
+      for (let i = 0; i < d.rows.length; i++) if (d.rows[i].bal <= 0.005) start = i;
+      let rows, title;
+      if (start >= 0){
+        rows = d.rows.slice(start + 1);
+        title = "Son sıfırlamadan beri (" + d.rows[start].date + ")";
+      } else {
+        const lim = new Date(); lim.setMonth(lim.getMonth() - 2); const k = iso(lim);
+        rows = d.rows.filter(r => r.key.slice(0, 10) >= k);
+        title = "Son 2 ay";
+      }
+      movBox.append(h("div", { class: "split" }, h("h2", { style: "margin:0" }, p.ad + " · hareketler"),
+        h("button", { class: "btn link", type: "button", onclick: () => { A.tab = "hesap"; A.ledgerOf = { id: p.id, ad: p.ad, ucret: p.gunluk_ucret }; adminBoot(); } }, "Tüm döküm ›")),
+        h("p", { class: "muted small", style: "margin:0" }, title + " · " + rows.length + " hareket" +
+          (d.pending.length ? " · " + d.pending.length + " kayıt onay bekliyor (hesaba girmedi)" : "")));
+      const list = h("div", { class: "ledger" });
+      if (!rows.length) list.append(h("p", { class: "muted" }, start >= 0 ? "Sıfırlamadan sonra yeni hareket yok." : "Bu dönemde hareket yok."));
+      ledgerList(list, rows, () => { loadBalance(); load(); });
+      movBox.append(list);
     } catch (e) { bakInfo.textContent = e.message; }
   }
   kisi.addEventListener("change", loadBalance);
@@ -965,7 +998,7 @@ async function adminPayments(){
     h("div", { class: "row" }, h("label", {}, "Tutar (TL)", tutar), h("label", {}, "Tür", tur)), h("label", {}, "Açıklama", acik), out, save);
   const filt = personSelect("o-filtre");
   const list = h("div", { style: "display:flex;flex-direction:column;gap:8px" });
-  app.append(f, h("div", { class: "split" }, h("h2", {}, "Ödemeler"), h("label", { style: "flex:0 1 220px" }, filt)), list);
+  app.append(f, movBox, h("div", { class: "split" }, h("h2", {}, "Ödemeler"), h("label", { style: "flex:0 1 220px" }, filt)), list);
   async function load(){
     try {
       const items = await rpc("y_odemeler", { p_token: A.token, p_calisan: filt.value ? Number(filt.value) : null }) || [];
