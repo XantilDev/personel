@@ -679,15 +679,15 @@ async function adminBoot(){
   document.title = "AYSOFT Personel · Yönetici";
   if (!A.token){ tabs([], null); who(null); return adminLogin(); }
   who("Yönetici", () => { rpc("cikis", { p_token: A.token }).catch(() => {}); logout(); });
-  tabs([["bekleyen", "Onay bekleyen"], ["kayitlar", "Kayıtlar"], ["hesap", "Hesap"], ["odeme", "Ödemeler"], ["izinler", "Pazar / İzin"], ["yolculuk", "Yolculuklar"], ["araclar", "Araçlar"], ["calisan", "Çalışanlar"], ["cihazlar", "Cihazlar"], ["gunluk", "Günlük"]], A.tab, k => { A.tab = k; A.leaveOf = null; A.ledgerOf = null; if (A.mapTimer){ clearInterval(A.mapTimer); A.mapTimer = null; } adminBoot(); });
+  tabs([["bekleyen", "Onay bekleyen"], ["kayitlar", "Kayıtlar"], ["hesap", "Hesap"], ["odeme", "Ödemeler"], ["izinler", "Pazar / İzin"], ["yolculuk", "Yolculuklar"], ["araclar", "Araçlar"], ["calisan", "Çalışanlar"], ["radar", "Radar noktaları"], ["cihazlar", "Cihazlar"], ["gunluk", "Günlük"]], A.tab, k => { A.tab = k; A.leaveOf = null; A.ledgerOf = null; if (A.mapTimer){ clearInterval(A.mapTimer); A.mapTimer = null; } adminBoot(); });
   app.textContent = "";
-  app.classList.toggle("wide", A.tab === "yolculuk" || A.tab === "araclar" || A.tab === "gunluk" || A.tab === "cihazlar");
+  app.classList.toggle("wide", A.tab === "yolculuk" || A.tab === "araclar" || A.tab === "gunluk" || A.tab === "cihazlar" || A.tab === "radar");
   try { A.people = await rpc("y_calisanlar", { p_token: A.token }) || []; }
   catch (e) { app.append(note(e.message)); return; }
   // Muayene uyarısı her sekmenin üstünde (araç listesi yoksa / SQL güncellenmemişse sessizce geçer)
   try { A.cars = (await rpc("y_araclar", { p_token: A.token }) || {}).araclar || []; } catch (e) { A.cars = []; }
   const mb = muayeneBar(A.cars); if (mb) app.append(mb);
-  ({ bekleyen: adminPending, kayitlar: adminEntries, hesap: adminAccount, odeme: adminPayments, izinler: adminLeaves, yolculuk: adminTrips, araclar: adminVehicles, calisan: adminPeople, cihazlar: adminDevices, gunluk: adminLogs })[A.tab]();
+  ({ bekleyen: adminPending, kayitlar: adminEntries, hesap: adminAccount, odeme: adminPayments, izinler: adminLeaves, yolculuk: adminTrips, araclar: adminVehicles, calisan: adminPeople, cihazlar: adminDevices, gunluk: adminLogs, radar: adminRadar })[A.tab]();
 }
 
 async function adminLogin(){
@@ -1184,6 +1184,44 @@ async function makeMap(el, center = [38.0, 32.5], zoom = 6){
     fit(pts){ if (!pts.length) return; pts.length === 1 ? map.setView(pts[0], 12) : map.fitBounds(pts, { padding: [40, 40], maxZoom: 14 }); },
     center(lat, lng, z = 14){ map.setView([lat, lng], z); }
   };
+}
+
+/* ---------- Radar noktaları: çalışanların yolda işaretlediği radar / çevirme yerleri ---------- */
+async function adminRadar(){
+  const mapEl = h("div", { style: "height:58vh;min-height:320px;border-radius:12px;border:1px solid var(--line);overflow:hidden;background:#e8ecef" });
+  const list = h("div", { class: "logs" });
+  const sum = h("span", { class: "muted small" });
+  app.append(h("div", { class: "split" }, h("h2", {}, "Radar ve çevirme noktaları"), sum),
+    h("p", { class: "muted small", style: "margin:0" }, "Çalışanlar yolda radar ya da çevirme görünce uygulamadan “🚓 İşaretle”ye basar. Aynı yerdeki (300 m) ve aynı yöne giden işaretler uygulamada tek “tahmini nokta” olur; rotada böyle bir nokta varsa 3 km ve 1 km önce sesli uyarı verilir. Yanlış işaretleri buradan silebilirsin."),
+    mapEl, list);
+  let rows = [];
+  try { rows = await rpc("y_radar", { p_token: A.token }) || []; }
+  catch (e) { list.append(note(/y_radar|function|fonksiyon/i.test(e.message) ? "Radar noktaları için Supabase güncellemesi (guncelleme-radar.sql) henüz çalıştırılmamış." : e.message)); return; }
+  const nR = rows.filter(r => r.tur === "radar").length;
+  sum.textContent = rows.length + " işaret · " + nR + " radar · " + (rows.length - nR) + " çevirme";
+  let map = null;
+  try { map = await makeMap(mapEl); } catch (e) { mapEl.replaceWith(note(e.message)); }
+  const yonAd = d => d == null ? "yön yok" : ["kuzey", "kuzeydoğu", "doğu", "güneydoğu", "güney", "güneybatı", "batı", "kuzeybatı"][Math.round(d / 45) % 8] + " yönüne giderken";
+  const marks = {};
+  rows.forEach(r => {
+    const html = "<b>" + (r.tur === "radar" ? "📷 Radar" : "👮 Çevirme") + "</b><br>" + esc(r.calisan || "?") + " · " + esc(new Date(r.zaman).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" })) + "<br>" + esc(yonAd(r.yon)) + (r.hiz != null ? " · " + r.hiz + " km/s" : "");
+    if (map) marks[r.id] = map.dot("r" + r.id, r.lat, r.lon, r.tur === "radar" ? "#dc2626" : "#2563eb", null, html);
+  });
+  if (map) map.fit(rows.map(r => [r.lat, r.lon]));
+  if (!rows.length) list.append(note("Henüz işaret yok. Uygulamada sürüş ekranındaki “🚓 İşaretle” düğmesiyle (ya da “Konuş”a basıp “radar” / “çevirme” diyerek) eklenir.", "info"));
+  rows.forEach(r => {
+    const t = new Date(r.zaman);
+    list.append(h("div", { class: "lrow " + (r.tur === "radar" ? "hata" : "") },
+      h("span", { class: "lt" }, t.toLocaleDateString("tr-TR") + " " + pad(t.getHours()) + ":" + pad(t.getMinutes())),
+      h("span", { class: "lo" }, r.tur === "radar" ? "📷 Radar" : "👮 Çevirme"),
+      h("span", { class: "lm", style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap" }, (r.calisan || "?") + " · " + yonAd(r.yon),
+        h("button", { class: "btn link", type: "button", onclick: e => { e.stopPropagation(); if (map) { map.center(r.lat, r.lon, 15); marks[r.id] && marks[r.id].open(); mapEl.scrollIntoView({ behavior: "smooth" }); } } }, "Haritada göster"),
+        h("button", { class: "btn link", type: "button", style: "color:var(--bad)", onclick: async e => {
+          e.stopPropagation();
+          if (!confirm("Bu işaret silinsin mi? Bütün çalışanların haritasından kalkar.")) return;
+          try { await rpc("y_radar_sil", { p_token: A.token, p_id: r.id }); adminBoot(); } catch (err) { alert(err.message); }
+        } }, "Sil"))));
+  });
 }
 
 /* ---------- Teknik: cihazlar ve günlük (Koridor Ortalama uygulamasının hata ayıklama kayıtları) ---------- */
