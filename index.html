@@ -170,6 +170,16 @@ main.wide{max-width:1240px}
 .abicon{font-size:22px}
 .mband{border-radius:10px;padding:8px 10px;font-weight:700;font-size:14px}
 .mband.ok{background:#dcfce7;color:#166534}.mband.orange{background:#ffedd5;color:#9a3412}.mband.red{background:#dc2626;color:#fff}.mband.none{background:var(--bg);color:var(--muted)}
+.dev{display:flex;flex-direction:column;gap:8px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#94a3b8;margin-right:6px;vertical-align:middle}
+.dot.on{background:#16a34a;box-shadow:0 0 0 4px rgba(22,163,74,.18)}
+.logs{display:flex;flex-direction:column;gap:4px}
+.lrow{display:grid;grid-template-columns:auto auto 1fr;gap:4px 10px;align-items:baseline;padding:8px 10px;border-radius:9px;background:var(--panel);border:1px solid var(--line);border-left:5px solid #94a3b8;cursor:pointer}
+.lrow.uyari{border-left-color:#ca8a04}.lrow.hata{border-left-color:#dc2626}.lrow.cokme{border-left-color:#7c3aed;background:var(--bad-bg)}
+.lrow .lt{font:500 12px var(--mono);color:var(--muted);white-space:nowrap}
+.lrow .lo{font:700 12px var(--sans);text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.lrow .lm{min-width:0;overflow-wrap:anywhere}
+.lrow .lx{grid-column:1/-1;font:12px/1.4 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere;color:var(--muted);margin:4px 0 0}
 .krow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:var(--bg);border-left:5px solid #16a34a}
 .krow b{font:800 24px var(--sans);color:#15803d}.krow.over{border-left-color:#dc2626}.krow.over b{color:#dc2626}.krow.tol{border-left-color:#ca8a04}.krow.tol b{color:#a16207}
 dialog.dlg{width:min(860px,94vw);max-height:90vh;border:0;border-radius:18px;padding:18px;background:var(--panel);color:var(--fg);box-shadow:0 20px 60px rgba(0,0,0,.35)}
@@ -187,7 +197,7 @@ dialog.dlg::backdrop{background:rgba(15,23,42,.55)}
 </header>
 <main id="app"></main>
 
-<script src="config.js?v=16"></script>
+<script src="config.js?v=17"></script>
 <script>
 "use strict";
 const $ = (s, el = document) => el.querySelector(s);
@@ -669,15 +679,15 @@ async function adminBoot(){
   document.title = "AYSOFT Personel · Yönetici";
   if (!A.token){ tabs([], null); who(null); return adminLogin(); }
   who("Yönetici", () => { rpc("cikis", { p_token: A.token }).catch(() => {}); logout(); });
-  tabs([["bekleyen", "Onay bekleyen"], ["kayitlar", "Kayıtlar"], ["hesap", "Hesap"], ["odeme", "Ödemeler"], ["izinler", "Pazar / İzin"], ["yolculuk", "Yolculuklar"], ["araclar", "Araçlar"], ["calisan", "Çalışanlar"]], A.tab, k => { A.tab = k; A.leaveOf = null; A.ledgerOf = null; if (A.mapTimer){ clearInterval(A.mapTimer); A.mapTimer = null; } adminBoot(); });
+  tabs([["bekleyen", "Onay bekleyen"], ["kayitlar", "Kayıtlar"], ["hesap", "Hesap"], ["odeme", "Ödemeler"], ["izinler", "Pazar / İzin"], ["yolculuk", "Yolculuklar"], ["araclar", "Araçlar"], ["calisan", "Çalışanlar"], ["cihazlar", "Cihazlar"], ["gunluk", "Günlük"]], A.tab, k => { A.tab = k; A.leaveOf = null; A.ledgerOf = null; if (A.mapTimer){ clearInterval(A.mapTimer); A.mapTimer = null; } adminBoot(); });
   app.textContent = "";
-  app.classList.toggle("wide", A.tab === "yolculuk" || A.tab === "araclar");
+  app.classList.toggle("wide", A.tab === "yolculuk" || A.tab === "araclar" || A.tab === "gunluk" || A.tab === "cihazlar");
   try { A.people = await rpc("y_calisanlar", { p_token: A.token }) || []; }
   catch (e) { app.append(note(e.message)); return; }
   // Muayene uyarısı her sekmenin üstünde (araç listesi yoksa / SQL güncellenmemişse sessizce geçer)
   try { A.cars = (await rpc("y_araclar", { p_token: A.token }) || {}).araclar || []; } catch (e) { A.cars = []; }
   const mb = muayeneBar(A.cars); if (mb) app.append(mb);
-  ({ bekleyen: adminPending, kayitlar: adminEntries, hesap: adminAccount, odeme: adminPayments, izinler: adminLeaves, yolculuk: adminTrips, araclar: adminVehicles, calisan: adminPeople })[A.tab]();
+  ({ bekleyen: adminPending, kayitlar: adminEntries, hesap: adminAccount, odeme: adminPayments, izinler: adminLeaves, yolculuk: adminTrips, araclar: adminVehicles, calisan: adminPeople, cihazlar: adminDevices, gunluk: adminLogs })[A.tab]();
 }
 
 async function adminLogin(){
@@ -1174,6 +1184,115 @@ async function makeMap(el, center = [38.0, 32.5], zoom = 6){
     fit(pts){ if (!pts.length) return; pts.length === 1 ? map.setView(pts[0], 12) : map.fitBounds(pts, { padding: [40, 40], maxZoom: 14 }); },
     center(lat, lng, z = 14){ map.setView([lat, lng], z); }
   };
+}
+
+/* ---------- Teknik: cihazlar ve günlük (Koridor Ortalama uygulamasının hata ayıklama kayıtları) ---------- */
+const TUR_AD = { bilgi: "Bilgi", uyari: "Uyarı", hata: "Hata", cokme: "Çökme" };
+function sqlMissing(e){ return /y_cihazlar|y_loglar|function|fonksiyon/i.test(e.message); }
+
+async function adminDevices(){
+  const box = h("div", { class: "tgrid" });
+  const upd = h("span", { class: "muted small" }, "");
+  app.append(h("div", { class: "split" }, h("h2", {}, "Cihazlar"), upd),
+    h("p", { class: "muted small", style: "margin:0" }, "Koridor Ortalama uygulamasının kurulu olduğu cihazlar. Uygulama açıkken dakikada bir haber verir; son 3 dakikada haber veren çevrimiçi sayılır. 30 sn'de bir yenilenir."), box);
+  async function load(){
+    try {
+      const rows = await rpc("y_cihazlar", { p_token: A.token }) || [];
+      upd.textContent = "Güncellendi " + new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      const newest = Math.max(0, ...rows.map(r => r.surum || 0));
+      box.textContent = "";
+      if (!rows.length) box.append(note("Henüz cihaz yok. Uygulamanın yeni sürümü kurulup açılınca burada görünür.", "info"));
+      rows.forEach(d => {
+        box.append(h("div", { class: "pcard dev" },
+          h("div", { style: "display:flex;align-items:center;gap:12px" },
+            h("span", { class: "avatar", style: "background:" + (d.cevrimici ? "#16a34a" : "#64748b") }, "📱"),
+            h("div", { style: "flex:1;min-width:0" },
+              h("div", { class: "ttitle" }, d.calisan || "Bağlı çalışan yok"),
+              h("div", { class: "tsub" }, (d.model || "Bilinmeyen cihaz") + (d.android ? " · Android " + d.android : "")))),
+          h("div", {}, h("span", { class: "dot" + (d.cevrimici ? " on" : "") }), h("b", {}, d.cevrimici ? "Çevrimiçi" : "Çevrimdışı"),
+            h("span", { class: "muted" }, " · son görülme " + agoText(d.son) + (d.durum ? " · " + d.durum : ""))),
+          h("div", { class: "pills" },
+            h("span", { class: "pill", style: d.surum && d.surum < newest ? "background:var(--warn-bg);color:var(--warn)" : "background:var(--ok-bg);color:var(--ok)" },
+              "Sürüm #" + (d.surum ?? "?") + (d.surum && d.surum < newest ? " · eski" : "")),
+            h("span", { class: "pill", style: d.hata_24s ? "background:var(--bad-bg);color:var(--bad)" : "background:var(--bg);color:var(--muted)" }, d.hata_24s + " hata (24 sa)"),
+            h("span", { class: "pill", style: "background:var(--bg);color:var(--muted)" }, d.log_24s + " kayıt (24 sa)")),
+          h("div", { style: "display:flex;gap:8px;flex-wrap:wrap" },
+            h("button", { class: "btn", type: "button", onclick: () => { A.logDevice = d.id; A.tab = "gunluk"; adminBoot(); } }, "Kayıtlarını gör"),
+            d.lat != null ? h("a", { class: "btn", href: "https://www.google.com/maps?q=" + d.lat + "," + d.lon, target: "_blank", rel: "noopener" }, "Son konum") : null)));
+      });
+    } catch (e) {
+      box.textContent = "";
+      box.append(note(sqlMissing(e) ? "Cihaz listesi için Supabase güncellemesi (guncelleme-log.sql) henüz çalıştırılmamış." : e.message));
+    }
+  }
+  await load();
+  if (A.mapTimer) clearInterval(A.mapTimer);
+  A.mapTimer = setInterval(() => { if (A.tab === "cihazlar" && document.body.contains(box)) load(); else { clearInterval(A.mapTimer); A.mapTimer = null; } }, 30000);
+}
+
+async function adminLogs(){
+  const f = A.logF || (A.logF = { gun: today(), tur: "", ara: "", limit: 300 });
+  let devices = [];
+  try { devices = await rpc("y_cihazlar", { p_token: A.token }) || []; } catch (e) {}
+  const devSel = h("select", { "aria-label": "Cihaz" }, h("option", { value: "" }, "Tüm cihazlar"),
+    devices.map(d => h("option", { value: d.id, selected: d.id === A.logDevice }, (d.calisan || "?") + " · " + (d.model || d.id.slice(0, 8)))));
+  const dayIn = h("input", { type: "date", value: f.gun, "aria-label": "Gün" });
+  const turSel = h("select", { "aria-label": "Tür" },
+    [["", "Hepsi"], ["hata", "Hatalar"], ["uyari", "Uyarılar"], ["cokme", "Çökmeler"], ["rota", "Rota"], ["egm", "EGM"], ["konum", "Konum"], ["yon", "Harita yönü"], ["harita", "Harita"], ["iz", "Ham konumlar"], ["elle", "Elle gönderilen"], ["uygulama", "Uygulama"], ["surus", "Sürüş"]]
+      .map(([v, t]) => h("option", { value: v, selected: v === f.tur }, t)));
+  const araIn = h("input", { type: "search", placeholder: "Ara (ör. bulunamadı)", value: f.ara, "aria-label": "Ara" });
+  const out = h("div", { class: "logs" });
+  const sum = h("div", { class: "muted small" });
+  let rows = [];
+  const go = async () => {
+    f.gun = dayIn.value; f.tur = turSel.value; f.ara = araIn.value.trim(); A.logDevice = devSel.value || null;
+    out.textContent = ""; out.append(h("div", { class: "muted" }, "Yükleniyor…"));
+    const bas = f.gun ? new Date(f.gun + "T00:00:00") : null;
+    const bit = bas ? new Date(bas.getTime() + 864e5) : null;
+    try {
+      rows = await rpc("y_loglar", { p_token: A.token, p_bas: bas && bas.toISOString(), p_bit: bit && bit.toISOString(),
+        p_cihaz: A.logDevice, p_tur: f.tur || null, p_ara: f.ara || null, p_limit: f.limit }) || [];
+      out.textContent = "";
+      const c = { hata: 0, uyari: 0, cokme: 0 }; rows.forEach(r => { if (c[r.tur] != null) c[r.tur]++; });
+      sum.textContent = rows.length + " kayıt" + (rows.length >= f.limit ? " (en yeni " + f.limit + ")" : "") + " · " + c.hata + " hata · " + c.uyari + " uyarı · " + c.cokme + " çökme";
+      if (!rows.length) out.append(note("Bu süzgeçle kayıt yok.", "info"));
+      rows.forEach(r => {
+        const extra = h("pre", { class: "lx", hidden: true });
+        const t = new Date(r.zaman);
+        out.append(h("div", { class: "lrow " + r.tur, onclick: () => {
+            if (extra.hidden && !extra.textContent) {
+              const lines = [(r.calisan || "?") + " · " + (r.model || "") + " · sürüm #" + (r.surum ?? "?") + (r.sahsi ? " · şahsi" : " · iş") + (r.hiz != null ? " · " + r.hiz + " km/s" : "")];
+              if (r.lat != null) lines.push("Konum: " + r.lat + ", " + r.lon + "  https://www.google.com/maps?q=" + r.lat + "," + r.lon);
+              if (r.veri) lines.push(JSON.stringify(r.veri, null, 2));
+              extra.textContent = lines.join("\n");
+            }
+            extra.hidden = !extra.hidden;
+          } },
+          h("span", { class: "lt" }, pad(t.getHours()) + ":" + pad(t.getMinutes()) + ":" + pad(t.getSeconds())),
+          h("span", { class: "lo" }, r.olay === "cokme" ? "Çökme" : (TUR_AD[r.tur] && r.tur !== "bilgi" ? TUR_AD[r.tur] + " · " : "") + r.olay),
+          h("span", { class: "lm" }, (A.logDevice ? "" : (r.calisan || "?") + ": ") + (r.mesaj || "")),
+          extra));
+      });
+    } catch (e) {
+      out.textContent = "";
+      out.append(note(sqlMissing(e) ? "Günlük için Supabase güncellemesi (guncelleme-log.sql) henüz çalıştırılmamış." : e.message));
+    }
+  };
+  const dl = () => {
+    const q = v => { const s = String(v ?? ""); return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    const lines = [["Zaman", "Çalışan", "Cihaz", "Sürüm", "Tür", "Olay", "Mesaj", "Hız", "Enlem", "Boylam", "Ayrıntı"].join(";")];
+    rows.forEach(r => lines.push([new Date(r.zaman).toLocaleString("tr-TR"), r.calisan, r.model, r.surum, TUR_AD[r.tur] || r.tur, r.olay, r.mesaj, r.hiz,
+      r.lat, r.lon, r.veri ? JSON.stringify(r.veri) : ""].map(q).join(";")));
+    const a = h("a", { href: URL.createObjectURL(new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" })), download: "gunluk-" + (f.gun || "tum") + ".csv" });
+    document.body.append(a); a.click(); a.remove();
+  };
+  [devSel, dayIn, turSel].forEach(el => el.addEventListener("change", go));
+  araIn.addEventListener("keydown", e => { if (e.key === "Enter") go(); });
+  app.append(h("div", { class: "split" }, h("h2", {}, "Günlük (teknik kayıtlar)"),
+      h("div", { style: "display:flex;gap:8px" }, h("button", { class: "btn", type: "button", onclick: go }, "Yenile"), h("button", { class: "btn", type: "button", onclick: dl }, "Excel'e aktar"))),
+    h("div", { class: "card" }, h("div", { class: "row" }, h("label", {}, "Gün", dayIn), h("label", {}, "Cihaz", devSel), h("label", {}, "Tür", turSel), h("label", {}, "Ara", araIn)), sum),
+    out);
+  await go();
 }
 
 /* ---------- Araçlar: Koridor Ortalama uygulamasından gelen son konumlar ---------- */
