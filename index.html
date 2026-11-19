@@ -197,7 +197,7 @@ dialog.dlg::backdrop{background:rgba(15,23,42,.55)}
 </header>
 <main id="app"></main>
 
-<script src="config.js?v=17"></script>
+<script src="config.js?v=18"></script>
 <script>
 "use strict";
 const $ = (s, el = document) => el.querySelector(s);
@@ -1240,10 +1240,18 @@ async function adminRadar(){
       h("span", { class: "lo" }, r.tur === "radar" ? "📷 Radar" : "👮 Çevirme"),
       h("span", { class: "lm", style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap" }, (r.calisan || "?") + " · " + yonAd(r.yon),
         h("button", { class: "btn link", type: "button", onclick: e => { e.stopPropagation(); if (map) { map.center(r.lat, r.lon, 15); marks[r.id] && marks[r.id].open(); mapEl.scrollIntoView({ behavior: "smooth" }); } } }, "Haritada göster"),
+        // Tarayıcı onay pencerelerini engelleyebildiği için onay sayfanın içinde: ilk dokunuş "Emin misin?", ikincisi siler
         h("button", { class: "btn link", type: "button", style: "color:var(--bad)", onclick: async e => {
           e.stopPropagation();
-          if (!confirm("Bu işaret silinsin mi? Bütün çalışanların haritasından kalkar.")) return;
-          try { await rpc("y_radar_sil", { p_token: A.token, p_id: r.id }); adminBoot(); } catch (err) { alert(err.message); }
+          const b = e.currentTarget;
+          if (b.dataset.sure !== "1") {
+            b.dataset.sure = "1"; b.textContent = "Emin misin? Silmek için tekrar dokun";
+            setTimeout(() => { if (b.isConnected) { b.dataset.sure = ""; b.textContent = "Sil"; } }, 5000);
+            return;
+          }
+          b.disabled = true; b.textContent = "Siliniyor…";
+          try { await rpc("y_radar_sil", { p_token: A.token, p_id: r.id }); adminBoot(); }
+          catch (err) { b.disabled = false; b.dataset.sure = ""; b.textContent = "Silinemedi: " + err.message; }
         } }, "Sil"))));
   });
 }
