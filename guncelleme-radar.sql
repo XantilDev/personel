@@ -46,9 +46,10 @@ create or replace function radar_noktalari(p_token text) returns json
 language plpgsql security definer set search_path = public, extensions as $$
 begin
   perform _calisan(p_token);
+  -- son alan: işaretleyen çalışanın adı (uygulamada "son dün (Ramazan)" diye gösterilir)
   return coalesce((select json_agg(json_build_array(r.id, r.tur, round(r.lat::numeric, 6), round(r.lon::numeric, 6), r.yon,
-      extract(epoch from r.zaman)::bigint) order by r.zaman)
-    from radar_isaret r where r.zaman > now() - interval '3 years'), '[]'::json);
+      extract(epoch from r.zaman)::bigint, c.ad) order by r.zaman)
+    from radar_isaret r left join calisan c on c.id = r.calisan_id where r.zaman > now() - interval '3 years'), '[]'::json);
 end $$;
 
 -- Panel: işaretler (kim, ne zaman)
