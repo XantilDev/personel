@@ -1166,7 +1166,9 @@ async function makeMap(el, center = [38.0, 32.5], zoom = 6){
       },
       line(pts, color = "#1a73e8", weight = 5){ return new g.Polyline({ map, path: pts.map(p => ({ lat: p[0], lng: p[1] })), strokeColor: color, strokeWeight: weight, strokeOpacity: .9 }); },
       fit(pts){ if (!pts.length) return; if (pts.length === 1){ map.setCenter({ lat: pts[0][0], lng: pts[0][1] }); map.setZoom(12); return; } const b = new g.LatLngBounds(); pts.forEach(p => b.extend({ lat: p[0], lng: p[1] })); map.fitBounds(b, 40); },
-      center(lat, lng, z = 14){ map.setCenter({ lat, lng }); map.setZoom(z); }
+      center(lat, lng, z = 14){ map.setCenter({ lat, lng }); map.setZoom(z); },
+      onClick(cb){ map.addListener("click", e => cb(e.latLng.lat(), e.latLng.lng())); },
+      pin(lat, lng){ if (this._pin) this._pin.setMap(null); this._pin = lat == null ? null : new g.Marker({ map, position: { lat, lng }, zIndex: 99 }); }
     };
   }
   const map = L.map(el).setView(center, zoom);
@@ -1182,7 +1184,9 @@ async function makeMap(el, center = [38.0, 32.5], zoom = 6){
     },
     line(pts, color = "#1a73e8", weight = 5){ return L.polyline(pts, { color, weight, opacity: .9 }).addTo(map); },
     fit(pts){ if (!pts.length) return; pts.length === 1 ? map.setView(pts[0], 12) : map.fitBounds(pts, { padding: [40, 40], maxZoom: 14 }); },
-    center(lat, lng, z = 14){ map.setView([lat, lng], z); }
+    center(lat, lng, z = 14){ map.setView([lat, lng], z); },
+    onClick(cb){ map.on("click", e => cb(e.latlng.lat, e.latlng.lng)); },
+    pin(lat, lng){ if (this._pin) this._pin.remove(); this._pin = lat == null ? null : L.marker([lat, lng]).addTo(map); }
   };
 }
 
@@ -1191,9 +1195,28 @@ async function adminRadar(){
   const mapEl = h("div", { style: "height:58vh;min-height:320px;border-radius:12px;border:1px solid var(--line);overflow:hidden;background:#e8ecef" });
   const list = h("div", { class: "logs" });
   const sum = h("span", { class: "muted small" });
+  // ---- Panelden nokta ekleme: haritaya tıkla ya da Google Haritalar'dan koordinatı yapıştır ----
+  const llIn = h("input", { type: "text", placeholder: "Haritaya tıkla ya da yapıştır: 38.2512, 33.5501", "aria-label": "Koordinat" });
+  const turSel = h("select", { "aria-label": "Tür" }, h("option", { value: "radar" }, "📷 Radar"), h("option", { value: "cevirme" }, "👮 Çevirme"));
+  const YONLER = [["", "Her iki yön (yön yok)"], ["0", "Kuzeye giderken"], ["45", "Kuzeydoğuya giderken"], ["90", "Doğuya giderken"], ["135", "Güneydoğuya giderken"],
+    ["180", "Güneye giderken"], ["225", "Güneybatıya giderken"], ["270", "Batıya giderken"], ["315", "Kuzeybatıya giderken"]];
+  const yonSel = h("select", { "aria-label": "Yön" }, YONLER.map(([v, t]) => h("option", { value: v }, t)));
+  const addMsg = h("div", { class: "muted small" }, "Yön seçersen uyarı yalnız o yöne gidenlere verilir (karşı şeritteki radar için yanlış uyarı çıkmaz).");
+  const parseLL = () => { const m = llIn.value.replace(/[()]/g, "").match(/(-?\d+(?:[.,]\d+)?)\s*[,; ]\s*(-?\d+(?:[.,]\d+)?)/); return m ? [parseFloat(m[1].replace(",", ".")), parseFloat(m[2].replace(",", "."))] : null; };
+  const addBtn = h("button", { class: "btn primary", type: "button", onclick: async () => {
+    const ll = parseLL();
+    if (!ll) { addMsg.textContent = "Koordinat okunamadı. Örnek: 38.2512, 33.5501"; return; }
+    addBtn.disabled = true; addMsg.textContent = "Ekleniyor…";
+    try {
+      await rpc("y_radar_ekle", { p_token: A.token, p_tur: turSel.value, p_lat: ll[0], p_lon: ll[1], p_yon: yonSel.value === "" ? null : parseInt(yonSel.value, 10) });
+      adminBoot();
+    } catch (e) { addMsg.textContent = /y_radar_ekle|function/i.test(e.message) ? "Supabase güncellemesi (guncelleme-radar.sql) eksik." : e.message; addBtn.disabled = false; }
+  } }, "Noktayı ekle");
+  const addBox = h("div", { class: "card" }, h("b", {}, "➕ Nokta ekle"),
+    h("div", { class: "row" }, h("label", {}, "Konum", llIn), h("label", {}, "Tür", turSel), h("label", {}, "Yön", yonSel)), addBtn, addMsg);
   app.append(h("div", { class: "split" }, h("h2", {}, "Radar ve çevirme noktaları"), sum),
-    h("p", { class: "muted small", style: "margin:0" }, "Çalışanlar yolda radar ya da çevirme görünce uygulamadan “🚓 İşaretle”ye basar. Aynı yerdeki (300 m) ve aynı yöne giden işaretler uygulamada tek “tahmini nokta” olur; rotada böyle bir nokta varsa 3 km ve 1 km önce sesli uyarı verilir. Yanlış işaretleri buradan silebilirsin."),
-    mapEl, list);
+    h("p", { class: "muted small", style: "margin:0" }, "Bildiğin noktaları aşağıdan kendin de ekleyebilirsin: haritada yere tıkla, türü ve yönü seç. Çalışanlar yolda radar ya da çevirme görünce uygulamadan “🚓 İşaretle”ye basar. Aynı yerdeki (300 m) ve aynı yöne giden işaretler uygulamada tek “tahmini nokta” olur; rotada böyle bir nokta varsa 3 km ve 1 km önce sesli uyarı verilir. Yanlış işaretleri buradan silebilirsin."),
+    mapEl, addBox, list);
   let rows = [];
   try { rows = await rpc("y_radar", { p_token: A.token }) || []; }
   catch (e) { list.append(note(/y_radar|function|fonksiyon/i.test(e.message) ? "Radar noktaları için Supabase güncellemesi (guncelleme-radar.sql) henüz çalıştırılmamış." : e.message)); return; }
@@ -1208,6 +1231,7 @@ async function adminRadar(){
     if (map) marks[r.id] = map.dot("r" + r.id, r.lat, r.lon, r.tur === "radar" ? "#dc2626" : "#2563eb", null, html);
   });
   if (map) map.fit(rows.map(r => [r.lat, r.lon]));
+  if (map && map.onClick) map.onClick((lat, lng) => { llIn.value = lat.toFixed(6) + ", " + lng.toFixed(6); map.pin(lat, lng); addMsg.textContent = "Konum seçildi. Türü ve yönü seçip “Noktayı ekle”ye bas."; });
   if (!rows.length) list.append(note("Henüz işaret yok. Uygulamada sürüş ekranındaki “🚓 İşaretle” düğmesiyle (ya da “Konuş”a basıp “radar” / “çevirme” diyerek) eklenir.", "info"));
   rows.forEach(r => {
     const t = new Date(r.zaman);
