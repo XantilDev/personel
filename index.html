@@ -197,7 +197,7 @@ dialog.dlg::backdrop{background:rgba(15,23,42,.55)}
 </header>
 <main id="app"></main>
 
-<script src="config.js?v=18"></script>
+<script src="config.js?v=19"></script>
 <script>
 "use strict";
 const $ = (s, el = document) => el.querySelector(s);
@@ -679,15 +679,15 @@ async function adminBoot(){
   document.title = "AYSOFT Personel · Yönetici";
   if (!A.token){ tabs([], null); who(null); return adminLogin(); }
   who("Yönetici", () => { rpc("cikis", { p_token: A.token }).catch(() => {}); logout(); });
-  tabs([["bekleyen", "Onay bekleyen"], ["kayitlar", "Kayıtlar"], ["hesap", "Hesap"], ["odeme", "Ödemeler"], ["izinler", "Pazar / İzin"], ["yolculuk", "Yolculuklar"], ["araclar", "Araçlar"], ["calisan", "Çalışanlar"], ["radar", "Radar noktaları"], ["cihazlar", "Cihazlar"], ["gunluk", "Günlük"]], A.tab, k => { A.tab = k; A.leaveOf = null; A.ledgerOf = null; if (A.mapTimer){ clearInterval(A.mapTimer); A.mapTimer = null; } adminBoot(); });
+  tabs([["bekleyen", "Onay bekleyen"], ["kayitlar", "Kayıtlar"], ["hesap", "Hesap"], ["odeme", "Ödemeler"], ["izinler", "Pazar / İzin"], ["yolculuk", "Yolculuklar"], ["araclar", "Araçlar"], ["calisan", "Çalışanlar"], ["radar", "Radar noktaları"], ["erisim", "Erişim"], ["cihazlar", "Cihazlar"], ["gunluk", "Günlük"]], A.tab, k => { A.tab = k; A.leaveOf = null; A.ledgerOf = null; if (A.mapTimer){ clearInterval(A.mapTimer); A.mapTimer = null; } adminBoot(); });
   app.textContent = "";
-  app.classList.toggle("wide", A.tab === "yolculuk" || A.tab === "araclar" || A.tab === "gunluk" || A.tab === "cihazlar" || A.tab === "radar");
+  app.classList.toggle("wide", A.tab === "yolculuk" || A.tab === "araclar" || A.tab === "gunluk" || A.tab === "cihazlar" || A.tab === "radar" || A.tab === "erisim");
   try { A.people = await rpc("y_calisanlar", { p_token: A.token }) || []; }
   catch (e) { app.append(note(e.message)); return; }
   // Muayene uyarısı her sekmenin üstünde (araç listesi yoksa / SQL güncellenmemişse sessizce geçer)
   try { A.cars = (await rpc("y_araclar", { p_token: A.token }) || {}).araclar || []; } catch (e) { A.cars = []; }
   const mb = muayeneBar(A.cars); if (mb) app.append(mb);
-  ({ bekleyen: adminPending, kayitlar: adminEntries, hesap: adminAccount, odeme: adminPayments, izinler: adminLeaves, yolculuk: adminTrips, araclar: adminVehicles, calisan: adminPeople, cihazlar: adminDevices, gunluk: adminLogs, radar: adminRadar })[A.tab]();
+  ({ bekleyen: adminPending, kayitlar: adminEntries, hesap: adminAccount, odeme: adminPayments, izinler: adminLeaves, yolculuk: adminTrips, araclar: adminVehicles, calisan: adminPeople, cihazlar: adminDevices, gunluk: adminLogs, radar: adminRadar, erisim: adminAccess })[A.tab]();
 }
 
 async function adminLogin(){
@@ -1254,6 +1254,79 @@ async function adminRadar(){
           catch (err) { b.disabled = false; b.dataset.sure = ""; b.textContent = "Silinemedi: " + err.message; }
         } }, "Sil"))));
   });
+}
+
+/* ---------- Erişim: davet kodları, misafir cihazları, kullanım ve engelleme ---------- */
+const RED_AD = { cihaz_siniri: "cihaz sınırı dolu", kod_kapali: "kod kapalı", kod_bitti: "süresi dolmuş", kod_yok: "yanlış kod" };
+function sureBtn(label, run){
+  // İki dokunuşlu onay (tarayıcı onay pencerelerini engelleyebiliyor)
+  return h("button", { class: "btn link", type: "button", onclick: async e => {
+    const b = e.currentTarget;
+    if (b.dataset.sure !== "1") { b.dataset.sure = "1"; const t = b.textContent; b.textContent = "Emin misin? Tekrar dokun"; setTimeout(() => { if (b.isConnected) { b.dataset.sure = ""; b.textContent = t; } }, 5000); return; }
+    b.disabled = true; b.textContent = "…";
+    try { await run(); adminBoot(); } catch (err) { b.disabled = false; b.dataset.sure = ""; b.textContent = "Olmadı: " + err.message; }
+  } }, label);
+}
+
+async function adminAccess(){
+  const box = h("div", { class: "dev", style: "gap:14px" });
+  app.append(h("h2", {}, "Erişim"),
+    h("p", { class: "muted small", style: "margin:0" }, "Çalışanlar kendi girişleriyle kullanır. Çalışan olmayanlara (misafir) buradan davet kodu ver: kaç cihazda, ne zamana kadar ve günde kaç Google rota/arama kullanabileceğini sen belirlersin. Kodu kapatınca ya da cihazı engelleyince uygulama o telefonda en geç 6 saat içinde kilitlenir (internet yoksa en geç 3 gün). Misafirlerin konumu ve gittiği yerler gönderilmez; yalnız kullanım sayıları gelir."),
+    box);
+  let d;
+  try { d = await rpc("y_erisim", { p_token: A.token }); }
+  catch (e) { box.append(note(/y_erisim|function/i.test(e.message) ? "Erişim sistemi için Supabase güncellemesi (guncelleme-erisim.sql) henüz çalıştırılmamış." : e.message)); return; }
+
+  // Yeni kod
+  const adIn = h("input", { type: "text", placeholder: "Kimin için? Ör. Ramazan'ın arkadaşı Ali" });
+  const limIn = h("input", { type: "number", min: 1, max: 10, value: 1 });
+  const gunIn = h("select", {}, [["30", "30 gün"], ["7", "7 gün"], ["90", "90 gün"], ["365", "1 yıl"], ["", "Süresiz"]].map(([v, t]) => h("option", { value: v }, t)));
+  const kotaIn = h("select", {}, [["50", "Günde 50 rota/arama"], ["20", "Günde 20"], ["100", "Günde 100"], ["", "Sınırsız"]].map(([v, t]) => h("option", { value: v }, t)));
+  const newMsg = h("div", { class: "small" });
+  const mk = h("button", { class: "btn primary", type: "button", onclick: async () => {
+    mk.disabled = true;
+    try {
+      const bitis = gunIn.value ? new Date(Date.now() + parseInt(gunIn.value, 10) * 864e5).toISOString().slice(0, 10) : null;
+      const kod = await rpc("y_kod_kaydet", { p_token: A.token, p_id: null, p_ad: adIn.value.trim(), p_limit: parseInt(limIn.value, 10) || 1, p_bitis: bitis, p_aktif: true, p_gunluk: kotaIn.value ? parseInt(kotaIn.value, 10) : null });
+      newMsg.textContent = "Kod oluşturuldu: " + kod + " — bunu kişiye gönder. Uygulama ilk açılışta kodu soracak.";
+      setTimeout(adminBoot, 6000);
+    } catch (e) { newMsg.textContent = e.message; mk.disabled = false; }
+  } }, "Kod oluştur");
+  box.append(h("div", { class: "card" }, h("b", {}, "➕ Yeni davet kodu"),
+    h("div", { class: "row" }, h("label", {}, "Kişi", adIn), h("label", {}, "Cihaz sayısı", limIn), h("label", {}, "Süre", gunIn), h("label", {}, "Google sınırı", kotaIn)), mk, newMsg));
+
+  const fmtDate = v => v ? new Date(v).toLocaleDateString("tr-TR") : "süresiz";
+  (d.kodlar || []).forEach(k => {
+    const bitti = k.bitis && new Date(k.bitis + "T23:59:59") < new Date();
+    const durum = !k.aktif ? "Kapalı" : bitti ? "Süresi dolmuş" : "Açık";
+    const card = h("div", { class: "pcard dev" },
+      h("div", { style: "display:flex;align-items:center;gap:10px;flex-wrap:wrap" },
+        h("b", { style: "font-family:var(--mono);font-size:18px" }, k.kod),
+        h("span", { class: "pill", style: durum === "Açık" ? "background:var(--ok-bg);color:var(--ok)" : "background:var(--bad-bg);color:var(--bad)" }, durum),
+        h("span", { class: "muted" }, (k.ad || "—") + " · " + k.cihazlar.filter(c => !c.engelli).length + "/" + k.cihaz_limit + " cihaz · bitiş " + fmtDate(k.bitis) + " · " + (k.gunluk_rota == null ? "sınırsız" : "günde " + k.gunluk_rota))),
+      k.cihazlar.length ? h("div", { class: "logs" }, k.cihazlar.map(c => h("div", { class: "lrow" + (c.engelli ? " hata" : "") },
+        h("span", { class: "lt" }, agoText(c.son)),
+        h("span", { class: "lo" }, c.engelli ? "Engelli" : "Cihaz"),
+        h("span", { class: "lm", style: "display:flex;gap:8px;flex-wrap:wrap;align-items:center" },
+          (c.model || "?") + " · 30 günde " + c.yolculuk30 + " yolculuk, " + Math.round(c.km30) + " km, " + c.google30 + " Google isteği (bugün " + c.google_bugun + ")",
+          sureBtn(c.engelli ? "Engeli kaldır" : "Engelle", () => rpc("y_erisim_cihaz", { p_token: A.token, p_id: c.id, p_engelli: !c.engelli })))))) : h("div", { class: "muted small" }, "Henüz kullanılmadı."),
+      k.red.length ? h("div", { class: "small", style: "color:var(--bad)" }, "⚠ Reddedilen denemeler: " + k.red.map(r => (r.model || "?") + " (" + (RED_AD[r.neden] || r.neden) + ", " + agoText(r.zaman) + ")").join(" · ")) : null,
+      h("div", { style: "display:flex;gap:8px;flex-wrap:wrap" },
+        sureBtn(k.aktif ? "Kodu kapat" : "Kodu aç", () => rpc("y_kod_kaydet", { p_token: A.token, p_id: k.id, p_ad: k.ad, p_limit: k.cihaz_limit, p_bitis: k.bitis, p_aktif: !k.aktif, p_gunluk: k.gunluk_rota })),
+        sureBtn("Süreyi 30 gün uzat", () => rpc("y_kod_kaydet", { p_token: A.token, p_id: k.id, p_ad: k.ad, p_limit: k.cihaz_limit, p_bitis: new Date(Math.max(Date.now(), k.bitis ? new Date(k.bitis).getTime() : 0) + 30 * 864e5).toISOString().slice(0, 10), p_aktif: k.aktif, p_gunluk: k.gunluk_rota })),
+        sureBtn("Sil", () => rpc("y_kod_sil", { p_token: A.token, p_id: k.id }))));
+    box.append(card);
+  });
+  if ((d.bilinmeyen_kod || []).length) box.append(note("Yanlış kodla denemeler: " + d.bilinmeyen_kod.map(r => r.kod + " · " + (r.model || "?") + " · " + agoText(r.zaman)).join(" | ")));
+
+  // Çalışan cihazları: kullanım ve engelleme
+  const emp = d.calisanlar || [];
+  if (emp.length) box.append(h("div", { class: "card" }, h("b", {}, "Çalışan cihazları (son 30 gün)"),
+    h("div", { class: "logs" }, emp.map(c => h("div", { class: "lrow" + (c.engelli ? " hata" : "") },
+      h("span", { class: "lt" }, agoText(c.son)),
+      h("span", { class: "lo" }, c.engelli ? "Engelli" : (c.ad || "?")),
+      h("span", { class: "lm", style: "display:flex;gap:8px;flex-wrap:wrap;align-items:center" }, (c.model || "?") + " · " + Math.round(c.km30) + " km · " + c.google30 + " Google isteği",
+        sureBtn(c.engelli ? "Engeli kaldır" : "Engelle", () => rpc("y_cihaz_engelle", { p_token: A.token, p_cihaz: c.cihaz_id, p_engelli: !c.engelli }))))))));
 }
 
 /* ---------- Teknik: cihazlar ve günlük (Koridor Ortalama uygulamasının hata ayıklama kayıtları) ---------- */
