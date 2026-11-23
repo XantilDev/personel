@@ -32,7 +32,10 @@ header{background:var(--brand);color:var(--brand-ink);padding:calc(10px + env(sa
 .logo small{display:block;font-weight:400;letter-spacing:0;opacity:.75;font-size:12px}
 .who{margin-left:auto;text-align:right;font-size:13px}
 .who button{background:none;border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:8px;padding:4px 10px;font:inherit;cursor:pointer;margin-left:8px}
-nav{display:flex;gap:2px;max-width:880px;margin:0 auto;overflow-x:auto;scrollbar-width:none}
+nav{display:flex;flex-wrap:wrap;gap:2px;max-width:880px;margin:0 auto}
+.subtabs{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}
+.subtabs button{background:var(--panel);border:1px solid var(--line);color:var(--muted);font:500 14px var(--sans);padding:7px 12px;border-radius:99px;cursor:pointer;white-space:nowrap}
+.subtabs button[aria-selected=true]{background:var(--accent);border-color:var(--accent);color:#fff}
 nav button{background:none;border:0;color:rgba(255,255,255,.72);font:500 14px var(--sans);padding:10px 12px;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap}
 nav button[aria-selected=true]{color:#fff;border-bottom-color:#7fb0ff}
 main{max-width:880px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-left,0px)) 40px max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:12px}
@@ -197,7 +200,7 @@ dialog.dlg::backdrop{background:rgba(15,23,42,.55)}
 </header>
 <main id="app"></main>
 
-<script src="config.js?v=20"></script>
+<script src="config.js?v=21"></script>
 <script>
 "use strict";
 const $ = (s, el = document) => el.querySelector(s);
@@ -673,14 +676,23 @@ async function staffLeave(){
    YÖNETİCİ
    ===================================================================== */
 let A = { token: LS.get("ap_admin"), tab: "bekleyen", people: [] };
+// Üst menü: personel işleri + "Uygulama" (alt sekmeleri Koridor Ortalama ekranları)
+const MAIN_TABS = [["bekleyen", "Onay bekleyen"], ["kayitlar", "Kayıtlar"], ["hesap", "Hesap"], ["odeme", "Ödemeler"], ["izinler", "Pazar / İzin"], ["araclar", "Araçlar"], ["calisan", "Çalışanlar"], ["uygulama", "Uygulama"]];
+const APP_TABS = [["kullanicilar", "Kullanıcılar"], ["erisim", "Erişim kodları"], ["yolculuk", "Yolculuklar"], ["radar", "Radar noktaları"], ["limitler", "Limit düzeltmeleri"], ["cihazlar", "Cihazlar"], ["gunluk", "Günlük"]];
+const APP_KEYS = new Set(APP_TABS.map(t => t[0]));
 
 async function adminBoot(){
   $("#sub").textContent = "Yönetici paneli";
   document.title = "AYSOFT Personel · Yönetici";
   if (!A.token){ tabs([], null); who(null); return adminLogin(); }
   who("Yönetici", () => { rpc("cikis", { p_token: A.token }).catch(() => {}); logout(); });
-  tabs([["bekleyen", "Onay bekleyen"], ["kayitlar", "Kayıtlar"], ["hesap", "Hesap"], ["odeme", "Ödemeler"], ["izinler", "Pazar / İzin"], ["yolculuk", "Yolculuklar"], ["araclar", "Araçlar"], ["calisan", "Çalışanlar"], ["radar", "Radar noktaları"], ["kullanicilar", "Kullanıcılar"], ["erisim", "Erişim kodları"], ["limitler", "Limit düzeltmeleri"], ["cihazlar", "Cihazlar"], ["gunluk", "Günlük"]], A.tab, k => { A.tab = k; A.leaveOf = null; A.ledgerOf = null; if (A.mapTimer){ clearInterval(A.mapTimer); A.mapTimer = null; } adminBoot(); });
+  const go = k => { A.tab = k; A.leaveOf = null; A.ledgerOf = null; if (A.mapTimer){ clearInterval(A.mapTimer); A.mapTimer = null; } if (APP_KEYS.has(k)) { A.appTab = k; LS.set("ap_apptab", k); } adminBoot(); };
+  const inApp = APP_KEYS.has(A.tab);
+  tabs(MAIN_TABS, inApp ? "uygulama" : A.tab, k => go(k === "uygulama" ? (A.appTab || LS.get("ap_apptab") || "kullanicilar") : k));
   app.textContent = "";
+  // "Uygulama" alt sekmeleri (Koridor Ortalama ile ilgili ekranlar)
+  if (inApp) app.append(h("div", { class: "subtabs", role: "tablist" },
+    APP_TABS.map(([k, label]) => h("button", { role: "tab", "aria-selected": String(k === A.tab), onclick: () => go(k) }, label))));
   app.classList.toggle("wide", A.tab === "yolculuk" || A.tab === "araclar" || A.tab === "gunluk" || A.tab === "cihazlar" || A.tab === "radar" || A.tab === "erisim" || A.tab === "kullanicilar" || A.tab === "limitler");
   try { A.people = await rpc("y_calisanlar", { p_token: A.token }) || []; }
   catch (e) { app.append(note(e.message)); return; }
