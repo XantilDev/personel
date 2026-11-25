@@ -203,7 +203,7 @@ dialog.dlg::backdrop{background:rgba(15,23,42,.55)}
 </header>
 <main id="app"></main>
 
-<script src="config.js?v=24"></script>
+<script src="config.js?v=25"></script>
 <script>
 "use strict";
 const $ = (s, el = document) => el.querySelector(s);
@@ -723,7 +723,7 @@ async function staffLeave(){
 let A = { token: LS.get("ap_admin"), tab: "bekleyen", people: [] };
 // Üst menü: personel işleri + "Uygulama" (alt sekmeleri Koridor Ortalama ekranları)
 const MAIN_TABS = [["bekleyen", "Onay bekleyen"], ["kayitlar", "Kayıtlar"], ["hesap", "Hesap"], ["odeme", "Ödemeler"], ["izinler", "Pazar / İzin"], ["araclar", "Araçlar"], ["calisan", "Çalışanlar"], ["uygulama", "Uygulama"]];
-const APP_TABS = [["kullanicilar", "Kullanıcılar"], ["erisim", "Erişim kodları"], ["yolculuk", "Yolculuklar"], ["radar", "Radar noktaları"], ["limitler", "Limit düzeltmeleri"], ["cihazlar", "Cihazlar"], ["gunluk", "Günlük"]];
+const APP_TABS = [["kullanicilar", "Kullanıcılar"], ["erisim", "Erişim kodları"], ["yolculuk", "Yolculuklar"], ["radar", "Radar noktaları"], ["limitler", "Limit düzeltmeleri"], ["cihazlar", "Cihazlar"], ["gunluk", "Günlük"], ["loganahtar", "Log anahtarı"]];
 const APP_KEYS = new Set(APP_TABS.map(t => t[0]));
 
 async function adminBoot(){
@@ -740,13 +740,13 @@ async function adminBoot(){
     APP_TABS.map(([k, label]) => h("button", { role: "tab", "aria-selected": String(k === A.tab), onclick: () => go(k) }, label))));
   // Sağ/sol geçiş: bulunduğun grubun içinde (personel ekranları ya da Uygulama alt sekmeleri)
   setPager(inApp ? APP_TABS : MAIN_TABS.filter(t => t[0] !== "uygulama"), A.tab, go);
-  app.classList.toggle("wide", A.tab === "yolculuk" || A.tab === "araclar" || A.tab === "gunluk" || A.tab === "cihazlar" || A.tab === "radar" || A.tab === "erisim" || A.tab === "kullanicilar" || A.tab === "limitler");
+  app.classList.toggle("wide", A.tab === "yolculuk" || A.tab === "araclar" || A.tab === "gunluk" || A.tab === "cihazlar" || A.tab === "radar" || A.tab === "erisim" || A.tab === "kullanicilar" || A.tab === "limitler" || A.tab === "loganahtar");
   try { A.people = await rpc("y_calisanlar", { p_token: A.token }) || []; }
   catch (e) { app.append(note(e.message)); return; }
   // Muayene uyarısı her sekmenin üstünde (araç listesi yoksa / SQL güncellenmemişse sessizce geçer)
   try { A.cars = (await rpc("y_araclar", { p_token: A.token }) || {}).araclar || []; } catch (e) { A.cars = []; }
   const mb = muayeneBar(A.cars); if (mb) app.append(mb);
-  ({ bekleyen: adminPending, kayitlar: adminEntries, hesap: adminAccount, odeme: adminPayments, izinler: adminLeaves, yolculuk: adminTrips, araclar: adminVehicles, calisan: adminPeople, cihazlar: adminDevices, gunluk: adminLogs, radar: adminRadar, erisim: adminAccess, kullanicilar: adminUsers, limitler: adminLimits })[A.tab]();
+  ({ bekleyen: adminPending, kayitlar: adminEntries, hesap: adminAccount, odeme: adminPayments, izinler: adminLeaves, yolculuk: adminTrips, araclar: adminVehicles, calisan: adminPeople, cihazlar: adminDevices, gunluk: adminLogs, radar: adminRadar, erisim: adminAccess, kullanicilar: adminUsers, limitler: adminLimits, loganahtar: adminLogKeys })[A.tab]();
 }
 
 async function adminLogin(){
@@ -1430,6 +1430,39 @@ async function adminLimits(){
         h("span", { class: "small muted" }, "Limit:"), inp, save, msg,
         sureBtn("Sil (EGM limitine dön)", () => rpc("y_limit_sil", { p_token: A.token, p_anahtar: l.anahtar })))));
   });
+}
+
+/* ---------- Log anahtarı: yalnız teknik logları okuyabilen ayrı anahtar (ör. Claude'un sorun incelemesi için) ---------- */
+async function adminLogKeys(){
+  const box = h("div", { class: "dev", style: "gap:12px" });
+  app.append(h("h2", {}, "Log anahtarı"),
+    h("p", { class: "muted small", style: "margin:0" }, "Bu anahtarla yalnız teknik loglar (Günlük) ve cihaz listesi okunabilir. Maaş, ödeme, izin, kayıtlar ve çalışan bilgilerine erişilemez; hiçbir şey değiştirilemez ya da silinemez. Loglarda çalışan adları ve sürüşteki konumlar olduğu için anahtarı yalnız güvendiğin yere ver. Anahtar oluşturulunca bir kez gösterilir; şüphelenirsen hemen iptal et."),
+    box);
+  let list;
+  try { list = await rpc("y_log_anahtarlar", { p_token: A.token }); }
+  catch (e) { box.append(note(/y_log_anahtarlar|function/i.test(e.message) ? "Bu sekme için Supabase güncellemesi (guncelleme-loganahtar.sql) henüz çalıştırılmamış." : e.message)); return; }
+  const adIn = h("input", { type: "text", placeholder: "Kimin için? Ör. Claude", value: "Claude" });
+  const out = h("div", { class: "small" });
+  const mk = h("button", { class: "btn primary", type: "button", onclick: async () => {
+    mk.disabled = true;
+    try {
+      const k = await rpc("y_log_anahtar_olustur", { p_token: A.token, p_ad: adIn.value.trim() });
+      out.textContent = "";
+      const code = h("input", { type: "text", readonly: true, value: k, style: "font-family:var(--mono);width:100%" });
+      const cp = h("button", { class: "btn", type: "button", onclick: async () => { try { await navigator.clipboard.writeText(k); cp.textContent = "Kopyalandı"; } catch (e) { code.select(); } } }, "Kopyala");
+      out.append(h("div", { class: "card", style: "gap:8px;display:flex;flex-direction:column" },
+        h("b", {}, "Anahtar oluşturuldu — bir daha gösterilmeyecek:"), code, cp,
+        h("div", { class: "muted small" }, "Bu sayfadan çıkınca anahtar bir daha görünmez. Kaybedersen yenisini oluştur, eskisini iptal et.")));
+    } catch (e) { out.textContent = e.message; mk.disabled = false; }
+  } }, "Yeni anahtar oluştur");
+  box.append(h("div", { class: "card" }, h("b", {}, "➕ Yeni log anahtarı"), h("div", { class: "row" }, h("label", {}, "Ad", adIn)), mk, out));
+  if (!list.length) box.append(h("div", { class: "muted" }, "Henüz anahtar yok."));
+  list.forEach(k => box.append(h("div", { class: "pcard dev" },
+    h("div", { style: "display:flex;gap:10px;flex-wrap:wrap;align-items:center" },
+      h("b", {}, k.ad || "Anahtar #" + k.id),
+      h("span", { class: "tag", style: k.aktif ? "background:var(--ok-bg);color:var(--ok)" : "background:var(--bad-bg);color:var(--bad)" }, k.aktif ? "Açık" : "İptal edildi"),
+      h("span", { class: "muted small" }, "oluşturma " + agoText(k.olusturma) + " · " + (k.son_kullanim ? "son kullanım " + agoText(k.son_kullanim) + " · " + k.kullanim + " okuma" : "hiç kullanılmadı"))),
+    k.aktif ? h("div", {}, sureBtn("İptal et", () => rpc("y_log_anahtar_iptal", { p_token: A.token, p_id: k.id }))) : null)));
 }
 
 /* ---------- Erişim: davet kodları, misafir cihazları, kullanım ve engelleme ---------- */
