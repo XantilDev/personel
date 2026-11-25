@@ -203,7 +203,7 @@ dialog.dlg::backdrop{background:rgba(15,23,42,.55)}
 </header>
 <main id="app"></main>
 
-<script src="config.js?v=23"></script>
+<script src="config.js?v=24"></script>
 <script>
 "use strict";
 const $ = (s, el = document) => el.querySelector(s);
@@ -1330,7 +1330,7 @@ function quotaEditor(cur, save){
 }
 
 /* ---------- Kullanıcılar: herkes tek listede (çalışan, misafir, firma cihazı, kodsuz) ---------- */
-const ISTEK_AD = { rota: "Rota", trafik: "Trafik yenileme", arama: "Arama" };
+const ISTEK_AD = { rota: "Rota", trafik: "Trafik yenileme", arama: "Arama", oneri: "Öneri (yazarken)" };
 function onlineBadge(t){
   const on = t && (Date.now() - new Date(t).getTime()) < 15 * 60e3;
   return h("span", { class: "tag", style: on ? "background:var(--ok-bg);color:var(--ok)" : "" }, on ? "● çevrimiçi" : (t ? "son " + agoText(t) : "hiç görülmedi"));
@@ -1374,7 +1374,7 @@ async function adminUsers(){
   box.append(h("h3", { style: "margin:6px 0 0" }, "Çalışanlar"));
   (d.calisanlar || []).forEach(c => box.append(row(
     c.ad + (c.aktif ? "" : " · PASİF"),
-    (c.cihazlar || "cihaz yok") + " · 30 günde " + c.google30 + " Google, " + Math.round(c.km30) + " km" + lastReq(c.son_istek),
+    (c.cihazlar || "cihaz yok") + " · öneri bugün " + (c.oneri_bugun || 0) + (c.oneri_gunluk == null ? "" : " / " + c.oneri_gunluk) + " · 30 günde " + c.google30 + " Google, " + Math.round(c.km30) + " km" + lastReq(c.son_istek),
     c.son, c.bugun, c.gunluk,
     [quotaEditor(c.gunluk, n => rpc("y_calisan_uygulama", { p_token: A.token, p_calisan: c.id, p_gunluk: n, p_aktif: c.aktif })),
      sureBtn(c.aktif ? "Pasif yap (uygulama kilitlenir)" : "Aktif yap", () => rpc("y_calisan_uygulama", { p_token: A.token, p_calisan: c.id, p_gunluk: c.gunluk, p_aktif: !c.aktif }))],
@@ -1387,7 +1387,7 @@ async function adminUsers(){
     box.append(row(
       (k.tur === "firma" ? "🏢 " : "") + (k.ad || k.kod) + (!k.aktif ? " · KAPALI" : bitti ? " · SÜRESİ DOLDU" : ""),
       k.kod + " · " + (k.tur === "firma" ? "firma cihazı" : "misafir") + " · " + (k.cihazlar || "henüz cihaz yok") + " · bitiş " + (k.bitis ? new Date(k.bitis).toLocaleDateString("tr-TR") : "süresiz") +
-        " · 30 günde " + k.google30 + " Google, " + Math.round(k.km30) + " km" + lastReq(k.son_istek),
+        (k.tur === "firma" ? " · öneri bugün " + (k.oneri_bugun || 0) : "") + " · 30 günde " + k.google30 + " Google, " + Math.round(k.km30) + " km" + lastReq(k.son_istek),
       k.son, k.bugun, k.gunluk,
       [sureBtn(k.aktif ? "Pasif yap (kodu kapat)" : "Aktif yap", () => rpc("y_kod_kaydet", { p_token: A.token, p_id: k.id, p_ad: k.ad, p_limit: 1, p_bitis: k.bitis, p_aktif: !k.aktif, p_gunluk: k.gunluk, p_tur: k.tur }))],
       { p_kod: k.id }));
