@@ -203,7 +203,7 @@ dialog.dlg::backdrop{background:rgba(15,23,42,.55)}
 </header>
 <main id="app"></main>
 
-<script src="config.js?v=22"></script>
+<script src="config.js?v=23"></script>
 <script>
 "use strict";
 const $ = (s, el = document) => el.querySelector(s);
@@ -1592,7 +1592,8 @@ async function adminLogs(){
           } },
           h("span", { class: "lt" }, pad(t.getHours()) + ":" + pad(t.getMinutes()) + ":" + pad(t.getSeconds())),
           h("span", { class: "lo" }, r.olay === "cokme" ? "Çökme" : (TUR_AD[r.tur] && r.tur !== "bilgi" ? TUR_AD[r.tur] + " · " : "") + r.olay),
-          h("span", { class: "lm" }, (A.logDevice ? "" : (r.calisan || "?") + ": ") + (r.mesaj || "")),
+          h("span", { class: "lm" }, h("span", { class: "muted small", style: "font-family:var(--mono);margin-right:6px" }, "#" + (r.surum ?? "?")),
+            (A.logDevice ? "" : (r.calisan || "?") + ": ") + (r.mesaj || "")),
           extra));
       });
     } catch (e) {
